@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "types": ["node", "react", "react-dom", "vite/client"],
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@gaballahtech/seba": ["./src/index.ts"],
+      "@gaballahtech/seba/node": ["./src/node/index.ts"],
+      "@gaballahtech/seba/browser": ["./src/browser/index.ts"]
+    }
+  },
+  "include": ["examples/**/*.ts", "examples/**/*.tsx"]
+}

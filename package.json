@@ -1,0 +1,85 @@
+{
+  "name": "@gaballahtech/seba",
+  "version": "0.2.0",
+  "description": "Developer-friendly Solid-OIDC authentication: login, session restoration and DPoP-signed fetch in four methods.",
+  "license": "MIT",
+  "author": "gaballahtech",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gaballahtech/seba.git"
+  },
+  "homepage": "https://github.com/gaballahtech/seba#readme",
+  "bugs": {
+    "url": "https://github.com/gaballahtech/seba/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser/index.d.ts",
+      "default": "./dist/browser/index.js"
+    },
+    "./node": {
+      "types": "./dist/node/index.d.ts",
+      "default": "./dist/node/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "examples",
+    "README.md",
+    "CHANGELOG.md",
+    "BUILD_REPORT.md",
+    "VALIDATION_REPORT.md",
+    "LICENSE",
+    "RESEARCH.md",
+    "ARCHITECTURE.md",
+    "SECURITY.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "solid",
+    "solid-oidc",
+    "oidc",
+    "oauth2",
+    "dpop",
+    "pkce",
+    "webid",
+    "authentication"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.examples.json",
+    "typecheck:examples": "tsc -p tsconfig.examples.json",
+    "example:react:build": "vite build --config examples/react/vite.config.ts",
+    "validate:discovery": "npm run build && node scripts/validation/public-discovery.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "idb": "^8.0.3",
+    "jose": "^6.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "fake-indexeddb": "^6.2.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  }
+}
