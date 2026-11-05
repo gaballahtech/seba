@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.2.1] — 2026-11-05
+
+Documentation-only patch. No runtime behaviour changed; the only functional difference is
+the wording of one error message.
+
+### Fixed
+
+- **Import paths in the shipped documentation.** The root entry point's JSDoc example still
+  read `import { Seba } from "seba"`, a name that npm rejects, and the `SebaConfigError`
+  thrown when the browser entry point runs without a DOM still told users to import
+  `"seba"` / `"seba/node"`. Both now use `@gaballahtech/seba` and
+  `@gaballahtech/seba/node`, and the browser/Node subpath JSDoc headers record their scoped
+  names. These strings are what `dist/**/*.d.ts` and the runtime error expose to consumers,
+  so 0.2.0 shipped documentation that could not be followed.
+
+Persistence identifiers are deliberately unchanged: the IndexedDB database is still named
+`seba` and the pending-authorization key is still `seba.pending-authorization`, so sessions
+stored by 0.2.0 keep working after the upgrade.
+
 ## [0.2.0] — 2026-11-05
 
 External validation and hardening release. This is not a claim of production readiness; the

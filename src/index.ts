@@ -1,9 +1,9 @@
 /**
- * Public entry point of the `seba` package.
+ * Public entry point of the `@gaballahtech/seba` package.
  *
  * @example
  * ```ts
- * import { Seba } from "seba";
+ * import { Seba } from "@gaballahtech/seba";
  *
  * const seba = new Seba({
  *   clientId: "https://myapp.example/client-id.jsonld",

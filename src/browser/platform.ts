@@ -23,7 +23,7 @@ const NAVIGATION_GRACE_MS = 1_500;
 export function createBrowserPlatform(): Platform {
   if (typeof window === "undefined" || typeof document === "undefined") {
     throw new SebaConfigError(
-      "The browser entry point requires a DOM. Import \"seba\" in a browser or \"seba/node\" in Node.js.",
+      "The browser entry point requires a DOM. Import \"@gaballahtech/seba\" in a browser or \"@gaballahtech/seba/node\" in Node.js.",
     );
   }
 
