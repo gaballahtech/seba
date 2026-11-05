@@ -1,4 +1,4 @@
-# PUBLISH_REPORT — @gaballahtech/seba 0.2.0
+# PUBLISH_REPORT — @gaballahtech/seba 0.2.1
 
 Date: 2026-11-05
 Environment: Linux container, Node.js v26.12.1, npm 12.2.1, registry `https://registry.npmjs.org/`.
@@ -6,6 +6,53 @@ GitHub identity available on the machine: `gaballahtech` (token used via API, ne
 npm authentication: **absent at the time of §1** (`~/.npmrc` contained only `prefix` and
 `allow-scripts`; no `_authToken`, and `npm whoami` failed with `need auth`). Authentication
 was configured later as `gaballahtech`; see the published section below.
+
+## v0.2.1 — Patch: scoped name in shipped docs
+
+**Status: published.** `dist-tags.latest` → `0.2.1`.
+
+0.2.0 shipped documentation that could not be followed: the root JSDoc example read
+`import { Seba } from "seba"` and the `SebaConfigError` for a DOM-less browser import told
+users to import `"seba"` / `"seba/node"`. Those four strings now use `@gaballahtech/seba`.
+No runtime behaviour changed apart from the error message wording.
+
+IndexedDB identifiers were left alone on purpose (`seba`, `seba.pending-authorization`), so
+sessions written by 0.2.0 remain readable.
+
+### Gates
+
+```
+npm run typecheck → 0
+npm test          → Test Files 9 passed (9) / Tests 123 passed (123), 0
+npm run build     → 0
+npm pack --dry-run→ @gaballahtech/seba@0.2.1, 86 files, 99.2 kB / 379.1 kB
+```
+
+### Publish and verified artefact
+
+```
+PUBLISH_EXIT=0
+npm notice Publishing to https://registry.npmjs.org/ with tag latest and public access
++ @gaballahtech/seba@0.2.1
+```
+
+```
+$ npm view @gaballahtech/seba@0.2.1 dist.tarball dist.shasum time.modified
+dist.tarball: https://registry.npmjs.org/@gaballahtech/seba/-/seba-0.2.1.tgz
+dist.shasum: 52c98009246317bca459a7a6710b35ce40ff2bcf
+time.modified: 2026-11-05T14:12:44.271Z
+
+$ npm view @gaballahtech/seba dist-tags
+latest: 0.2.1
+```
+
+The tarball itself was downloaded (HTTP 200, 99,152 bytes) and inspected: `package.json`
+reports `@gaballahtech/seba` `0.2.1`, `package/dist/index.d.ts` contains
+`import { Seba } from "@gaballahtech/seba"`, `package/dist/node/index.d.ts` contains
+`@gaballahtech/seba/node`, and `package/dist/browser/platform.js` contains the scoped
+error text. `grep` for `Import \"seba\"` across `package/dist/` returns nothing.
+
+Source is at https://github.com/gaballahtech/seba (commit `8b731c6`).
 
 ## v0.2.0 — Published as @gaballahtech/seba
 
