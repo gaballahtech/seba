@@ -18,6 +18,7 @@ const OBSERVED_ATTRIBUTES = [
   "redirect-uri",
   "issuer",
   "web-id",
+  "config",
   "label",
   "theme",
   "logo",
@@ -146,7 +147,22 @@ export class SebaLoginElement extends HTMLElementBase {
       return null;
     }
     const account = this.#attr("account");
-    const seba = new Seba({ clientId, redirectUri, ...(account === null ? {} : { account }) });
+    let extra: Partial<ConstructorParameters<typeof Seba>[0]> = {};
+    const configAttr = this.#attr("config");
+    if (configAttr !== null && configAttr.trim() !== "") {
+      const parsed = parseInlineConfig(configAttr);
+      if ("error" in parsed) {
+        this.#fail(new SebaConfigError(`Invalid <seba-login> "config" attribute: ${parsed.error}`));
+        return null;
+      }
+      extra = parsed.config;
+    }
+    const seba = new Seba({
+      ...extra,
+      ...(account === null ? {} : { account }),
+      clientId,
+      redirectUri,
+    });
     this.#seba = seba;
     this.#unsubscribe = seba.onSessionChange((event) => {
       this.#onSessionChange(event);
@@ -270,6 +286,22 @@ export class SebaLoginElement extends HTMLElementBase {
     }
     this.dispatchEvent(new CustomEvent("seba:error", { detail: { error }, bubbles: true, composed: true }));
   }
+}
+
+/** Inline `config` attribute value -> SebaConfig overlay (or a reason string). */
+export function parseInlineConfig(
+  value: string,
+): { config: Partial<ConstructorParameters<typeof Seba>[0]> } | { error: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return { error: "value is not valid JSON." };
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { error: "value must be a JSON object." };
+  }
+  return { config: parsed as Partial<ConstructorParameters<typeof Seba>[0]> };
 }
 
 /**

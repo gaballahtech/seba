@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { Seba, SebaLoginElement, defineSebaLogin, sebaLogo, sebaLogoImage } from "../../src/index.js";
+import { parseInlineConfig } from "../../src/element.js";
 
 describe("brand assets", () => {
   it("inlines PNG artwork for every variant", () => {
@@ -30,6 +31,14 @@ describe("<seba-login>", () => {
     const element = new SebaLoginElement();
     expect(element.session).toBeNull();
     await expect(element.login()).resolves.toBeNull();
+  });
+
+  it("parses the inline config attribute", () => {
+    const ok = parseInlineConfig('{"tolerances":{"https://p.example/":{"allowNonCompliantAudience":true}}}');
+    expect(ok).toEqual({ config: { tolerances: { "https://p.example/": { allowNonCompliantAudience: true } } } });
+    expect(parseInlineConfig("{invalid")).toMatchObject({ error: expect.any(String) });
+    expect(parseInlineConfig("[1,2]")).toMatchObject({ error: expect.any(String) });
+    expect(parseInlineConfig("null")).toMatchObject({ error: expect.any(String) });
   });
 
   it("exposes callback detection through the facade", () => {
