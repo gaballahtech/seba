@@ -18,6 +18,13 @@ export type SebaErrorCode =
 export interface SebaErrorOptions {
   /** Underlying error, kept for diagnostics. Never used to carry secrets. */
   cause?: unknown;
+  /**
+   * Which protocol step produced the error, e.g. `"token-exchange"`,
+   * `"id-token-signature"`, `"id-token-audience"`, `"id-token-cnf-binding"`,
+   * `"authorization-response"`, `"network"`. Stable strings intended for
+   * diagnostics and support tooling.
+   */
+  stage?: string;
 }
 
 /**
@@ -28,18 +35,23 @@ export interface SebaErrorOptions {
  * try {
  *   await seba.login();
  * } catch (error) {
- *   if (error instanceof SebaError) console.error(error.code, error.message);
+ *   if (error instanceof SebaError) console.error(error.code, error.stage, error.message);
  * }
  * ```
  */
 export class SebaError extends Error {
   /** Stable, machine-readable error code. */
   readonly code: SebaErrorCode;
+  /** Protocol step that produced the error, when known. */
+  readonly stage?: string;
 
   constructor(code: SebaErrorCode, message: string, options?: SebaErrorOptions) {
     super(message, options?.cause === undefined ? undefined : { cause: options.cause });
     this.name = new.target.name;
     this.code = code;
+    if (options?.stage !== undefined) {
+      this.stage = options.stage;
+    }
   }
 }
 
@@ -116,7 +128,7 @@ export class SebaDPoPError extends SebaError {
 /** A network request failed (offline, DNS, TLS, connection reset, non-HTTP response). */
 export class SebaNetworkError extends SebaError {
   constructor(message: string, options?: SebaErrorOptions) {
-    super("SEBA_ERR_NETWORK", message, options);
+    super("SEBA_ERR_NETWORK", message, { ...options, stage: options?.stage ?? "network" });
   }
 }
 

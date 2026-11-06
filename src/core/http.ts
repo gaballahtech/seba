@@ -65,9 +65,15 @@ export async function httpFetch(url: string | URL, init: RequestInit, options: H
       throw new SebaNetworkError(`The request to ${describeUrl(target)} was aborted.`, { cause: error });
     }
     const reason = timedOut ? `did not complete within ${String(timeoutMs)} ms` : "could not be completed";
+    const hint =
+      typeof window !== "undefined" && typeof document !== "undefined"
+        ? "In a browser the most common cause is CORS: the server at this URL must send an " +
+          "Access-Control-Allow-Origin header covering this app's origin — resource servers " +
+          "(Pods) normally do, but custom endpoints or a mismatched URL may not."
+        : "Check any proxy configuration for the Node.js process.";
     throw new SebaNetworkError(
       `Network request to ${describeUrl(target)} ${reason}. ` +
-        "Check the network connection, the provider URL and (in Node.js) any proxy configuration.",
+        `Check the network connection and the URL. ${hint}`,
       { cause: error },
     );
   } finally {
