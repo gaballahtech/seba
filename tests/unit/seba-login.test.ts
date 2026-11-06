@@ -9,8 +9,8 @@ describe("brand assets", () => {
       expect(asset.dataUri.length).toBeGreaterThan(400);
       expect(asset.png.startsWith("assets/")).toBe(true);
       expect(asset.png.endsWith(".png")).toBe(true);
-      expect(asset.width).toBe(64);
-      expect(asset.height).toBe(64);
+      expect(asset.width).toBe(48);
+      expect(asset.height).toBe(48);
       expect(asset.dataUri).not.toContain("svg");
     }
   });

@@ -2,7 +2,7 @@
  * SEBA brand assets (PNG only).
  *
  * The 512x512 PNGs in `assets/` are shipped with the package through the `./assets/*`
- * export. A 64x64 PNG rendering of each treatment is inlined as a data URI so the
+ * export. A 48x48 PNG rendering of each treatment is inlined as a data URI so the
  * sign-in button paints without a network request and the core keeps zero runtime
  * dependencies.
  */
@@ -23,9 +23,9 @@ export interface SebaLogoAsset {
   /** Inline `data:image/png;base64,...` rendering for runtime use. */
   readonly dataUri: string;
   /** Intrinsic width of the inlined PNG. */
-  readonly width: 64;
+  readonly width: 48;
   /** Intrinsic height of the inlined PNG. */
-  readonly height: 64;
+  readonly height: 48;
 }
 
 function asset(
@@ -33,7 +33,7 @@ function asset(
   label: string,
   png: string,
 ): SebaLogoAsset {
-  return { variant, label, png, dataUri: SEBA_PNG_DATA[variant], width: 64, height: 64 };
+  return { variant, label, png, dataUri: SEBA_PNG_DATA[variant], width: 48, height: 48 };
 }
 
 const ASSETS: Record<SebaLogoVariant, SebaLogoAsset> = {
