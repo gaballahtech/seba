@@ -1,6 +1,6 @@
 {
   "name": "@gaballahtech/seba",
-  "version": "0.2.1",
+  "version": "0.5.0",
   "description": "Developer-friendly Solid-OIDC authentication: login, session restoration and DPoP-signed fetch in four methods.",
   "license": "MIT",
   "author": "gaballahtech",
@@ -30,10 +30,16 @@
       "types": "./dist/node/index.d.ts",
       "default": "./dist/node/index.js"
     },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "default": "./dist/react/index.js"
+    },
+    "./assets/*": "./assets/*",
     "./package.json": "./package.json"
   },
   "files": [
     "dist",
+    "assets",
     "examples",
     "README.md",
     "CHANGELOG.md",
@@ -69,6 +75,14 @@
   "dependencies": {
     "idb": "^8.0.3",
     "jose": "^6.1.0"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^24.7.0",
