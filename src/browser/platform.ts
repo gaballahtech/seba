@@ -75,5 +75,23 @@ export function createBrowserPlatform(): Platform {
   } satisfies Platform;
 }
 
+/**
+ * Derive a namespaced platform for multi-account support: each account gets its own
+ * IndexedDB database and sessionStorage transaction key so parallel `Seba` instances
+ * never overwrite each other's session.
+ */
+export function namespaceBrowserPlatform(platform: Platform, account: string): Platform {
+  return {
+    ...platform,
+    pendingAuth: createSessionStoragePendingAuthStore(account),
+    createStorage(kind: StorageKind): SessionStorageAdapter {
+      if (kind === "memory") {
+        return memorySessionStorage();
+      }
+      return createIndexedDbStorage(account);
+    },
+  };
+}
+
 /** Re-exported for {@link Seba} type inference in browser-only builds. */
 export type { LoginOptions };

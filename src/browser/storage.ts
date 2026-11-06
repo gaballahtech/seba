@@ -35,21 +35,32 @@ interface SebaDB extends DBSchema {
   session: { key: string; value: PersistedSession };
 }
 
-let database: Promise<IDBPDatabase<SebaDB>> | null = null;
+const databases = new Map<string, Promise<IDBPDatabase<SebaDB>>>();
 
-function open(): Promise<IDBPDatabase<SebaDB>> {
+function accountKey(account: string | undefined): string {
+  const name = account === undefined ? DB_NAME : `${DB_NAME}:${account}`;
+  return name;
+}
+
+function open(account: string | undefined): Promise<IDBPDatabase<SebaDB>> {
   if (typeof indexedDB === "undefined") {
     throw new SebaConfigError(
       "IndexedDB is not available in this environment. Use storage: \"memory\" or run in a browser.",
     );
   }
-  database ??= openDB<SebaDB>(DB_NAME, 1, {
+  const key = accountKey(account);
+  const existing = databases.get(key);
+  if (existing !== undefined) {
+    return existing;
+  }
+  const database = openDB<SebaDB>(key, 1, {
     upgrade(db) {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
       }
     },
   });
+  databases.set(key, database);
   return database;
 }
 
@@ -58,19 +69,19 @@ function open(): Promise<IDBPDatabase<SebaDB>> {
  *
  * Only {@link PersistedSession} is written; access tokens never reach this code.
  */
-export function createIndexedDbStorage(): SessionStorageAdapter {
+export function createIndexedDbStorage(account?: string): SessionStorageAdapter {
   return {
     async save(session) {
-      const db = await open();
+      const db = await open(account);
       await db.put(STORE_NAME, structuredClone(session), SESSION_KEY);
     },
     async load() {
-      const db = await open();
+      const db = await open(account);
       const value = await db.get(STORE_NAME, SESSION_KEY);
       return value ?? null;
     },
     async clear() {
-      const db = await open();
+      const db = await open(account);
       await db.delete(STORE_NAME, SESSION_KEY);
     },
   };
@@ -80,16 +91,18 @@ export function createIndexedDbStorage(): SessionStorageAdapter {
  * Create the `sessionStorage`-backed authorization transaction store.
  *
  * Expired transactions are discarded on read instead of being resumed.
+ * A per-account namespace keeps parallel multi-account logins isolated.
  */
-export function createSessionStoragePendingAuthStore(): PendingAuthorizationStore {
+export function createSessionStoragePendingAuthStore(account?: string): PendingAuthorizationStore {
+  const key = account === undefined ? PENDING_AUTH_KEY : `${PENDING_AUTH_KEY}:${account}`;
   return {
     async save(pending) {
       const storage = sessionStorageOrThrow();
-      storage.setItem(PENDING_AUTH_KEY, JSON.stringify(pending));
+      storage.setItem(key, JSON.stringify(pending));
     },
     async load() {
       const storage = sessionStorageOrThrow();
-      const raw = storage.getItem(PENDING_AUTH_KEY);
+      const raw = storage.getItem(key);
       if (raw === null) {
         return null;
       }
@@ -97,15 +110,15 @@ export function createSessionStoragePendingAuthStore(): PendingAuthorizationStor
       try {
         parsed = JSON.parse(raw);
       } catch {
-        storage.removeItem(PENDING_AUTH_KEY);
+        storage.removeItem(key);
         return null;
       }
       if (!isPendingAuthorization(parsed)) {
-        storage.removeItem(PENDING_AUTH_KEY);
+        storage.removeItem(key);
         return null;
       }
       if (Date.now() - parsed.createdAt > PENDING_AUTH_TTL_MS) {
-        storage.removeItem(PENDING_AUTH_KEY);
+        storage.removeItem(key);
         throw new SebaAuthError(
           "The pending login expired after 10 minutes. Start the login again from the application.",
         );
@@ -113,7 +126,7 @@ export function createSessionStoragePendingAuthStore(): PendingAuthorizationStor
       return parsed;
     },
     async clear() {
-      sessionStorageOrThrow().removeItem(PENDING_AUTH_KEY);
+      sessionStorageOrThrow().removeItem(key);
     },
   };
 }
