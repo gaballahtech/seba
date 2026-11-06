@@ -43,6 +43,7 @@
     "examples",
     "README.md",
     "CHANGELOG.md",
+    "MIGRATION.md",
     "BUILD_REPORT.md",
     "VALIDATION_REPORT.md",
     "LICENSE",
