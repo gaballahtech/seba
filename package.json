@@ -17,17 +17,24 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "sideEffects": false,
+  "browser": {
+    "./dist/node/index.js": false,
+    "./dist/node/platform.js": false
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "browser": "./dist/browser/index.js",
       "default": "./dist/index.js"
     },
     "./browser": {
       "types": "./dist/browser/index.d.ts",
+      "browser": "./dist/browser/index.js",
       "default": "./dist/browser/index.js"
     },
     "./node": {
       "types": "./dist/node/index.d.ts",
+      "node": "./dist/node/index.js",
       "default": "./dist/node/index.js"
     },
     "./react": {
