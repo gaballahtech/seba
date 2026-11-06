@@ -375,6 +375,107 @@ describe("validateIdToken", () => {
   });
 });
 
+describe("validateIdToken with allowNonCompliantAudience", () => {
+  const baseInput = () => ({
+    idToken: "",
+    configuration: configuration(),
+    clientId: CLIENT_ID,
+    nonce: "nonce-value",
+    signer: signer(),
+    requireDpopBinding: true,
+    jwks: localJwks([publicJwk]),
+  });
+
+  function configWithAllow(enabled: boolean): OIDCConfiguration {
+    return { ...configuration(), allowNonCompliantAudience: enabled };
+  }
+
+  function noncompliantToken(claims: Record<string, unknown> = {}): Promise<string> {
+    return signIdToken({ aud: CLIENT_ID, ...claims });
+  }
+
+  it("rejects an ID token without \"solid\" in aud when the flag is false", async () => {
+    await expect(
+      validateIdToken({ ...baseInput(), configuration: configWithAllow(false), idToken: await noncompliantToken() }),
+    ).rejects.toThrow(/does not include.*"solid"/);
+  });
+
+  it("passes an ID token without \"solid\" in aud when the flag is true", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const identity = await validateIdToken({
+        ...baseInput(),
+        configuration: configWithAllow(true),
+        idToken: await noncompliantToken(),
+      });
+      expect(identity).toEqual({ webId: WEB_ID, issuer: ISSUER, subject: WEB_ID });
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("warns exactly once per process when the flag is true", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { setNonCompliantAudienceWarned } = await import("../../src/core/oidc.js");
+    setNonCompliantAudienceWarned(false);
+    try {
+      // Force aud to the client_id only, without "solid", mirroring solidcommunity.net.
+      // signIdToken is not exported from this test file, so build the token here.
+      const { generateKeyPair, SignJWT } = await import("jose");
+      const now = Math.floor(Date.now() / 1000);
+      const keys = await generateKeyPair("ES256", { extractable: true });
+      const token = await (new SignJWT({
+        aud: CLIENT_ID,
+        iss: ISSUER,
+        sub: WEB_ID,
+        nonce: "nonce-value",
+        cnf: { jkt: "thumb-a" },
+        iat: now,
+        exp: now + 300,
+      })
+        .setProtectedHeader({ alg: "ES256" })
+        .sign(keys.privateKey as CryptoKey));
+      const jwksForTest = localJwks([await (await import("jose")).exportJWK(keys.publicKey)]);
+      await validateIdToken({ ...baseInput(), configuration: configWithAllow(true), jwks: jwksForTest, idToken: token });
+      await validateIdToken({ ...baseInput(), configuration: configWithAllow(true), jwks: jwksForTest, idToken: token });
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect((warnSpy.mock.calls[0]?.[0] ?? "")).toContain("WARNING");
+      expect((warnSpy.mock.calls[0]?.[0] ?? "")).toContain("allowNonCompliantAudience is enabled");
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("still rejects an ID token without the client_id audience even when the flag is true", async () => {
+    await expect(
+      validateIdToken({
+        ...baseInput(),
+        configuration: configWithAllow(true),
+        idToken: await signIdToken({ aud: "https://different.example/client-id.jsonld" }),
+      }),
+    ).rejects.toThrow(/failed validation/);
+  });
+
+  it("still rejects an ID token whose aud is an array that does not contain the client_id even when the flag is true", async () => {
+    await expect(
+      validateIdToken({
+        ...baseInput(),
+        configuration: configWithAllow(true),
+        idToken: await signIdToken({ aud: ["https://different.example/client-id.jsonld"] }),
+      }),
+    ).rejects.toThrow(/failed validation/);
+  });
+
+  it("passes an ID token with \"solid\" and the client_id when the flag is false", async () => {
+    const identity = await validateIdToken({
+      ...baseInput(),
+      configuration: configWithAllow(false),
+      idToken: await signIdToken({ aud: [CLIENT_ID, "solid"] }),
+    });
+    expect(identity).toEqual({ webId: WEB_ID, issuer: ISSUER, subject: WEB_ID });
+  });
+});
+
 describe("exchangeAuthorizationCode", () => {
   async function exchange(fetchImpl: typeof fetch) {
     return exchangeAuthorizationCode({

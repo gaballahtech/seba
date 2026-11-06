@@ -172,7 +172,7 @@ export function parseAuthorizationResponse(callbackUrl: string, pending: Pending
   try {
     url = new URL(callbackUrl);
   } catch {
-    throw new SebaAuthError(`The authorization response "${callbackUrl}" is not a valid URL.`);
+    throw new SebaAuthError(`The authorization response "${callbackUrl}" is not a valid URL.`, { stage: "authorization-response" });
   }
   const params = url.searchParams;
 
@@ -182,6 +182,7 @@ export function parseAuthorizationResponse(callbackUrl: string, pending: Pending
     throw new SebaAuthError(
       `The identity provider returned the error "${providerError}"` +
         (description === null ? "." : `: ${description}`),
+      { stage: "authorization-response" },
     );
   }
 
@@ -190,6 +191,7 @@ export function parseAuthorizationResponse(callbackUrl: string, pending: Pending
     throw new SebaAuthError(
       "The authorization response state does not match the pending login. " +
         "The response was ignored; start the login again from the application.",
+      { stage: "authorization-response-state" },
     );
   }
 
@@ -198,18 +200,20 @@ export function parseAuthorizationResponse(callbackUrl: string, pending: Pending
     throw new SebaAuthError(
       "The authorization response does not contain the RFC 9207 \"iss\" parameter. " +
         `Expected "${pending.issuer}". Solid-OIDC requires providers to return it; the response was rejected.`,
+      { stage: "authorization-response-iss" },
     );
   }
   if (issuer !== pending.issuer) {
     throw new SebaAuthError(
       `The authorization response was issued by "${issuer}", but this login was started for "${pending.issuer}". ` +
         "This is a mix-up attempt or a misconfigured provider; the response was rejected.",
+      { stage: "authorization-response-iss" },
     );
   }
 
   const code = params.get("code");
   if (code === null || code === "") {
-    throw new SebaAuthError("The authorization response does not contain an authorization code.");
+    throw new SebaAuthError("The authorization response does not contain an authorization code.", { stage: "authorization-response" });
   }
   return code;
 }
@@ -247,9 +251,12 @@ export async function requestTokenResponse(input: {
   signer: DPoPSigner;
   fetchImpl: typeof fetch;
   nonce?: string;
+  /** Number of `use_dpop_nonce` challenges that may be answered. @defaultValue 1 */
+  maxNonceRetries?: number;
 }): Promise<TokenRequestOutcome> {
   let nonce = input.nonce;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  const attempts = 1 + (input.maxNonceRetries === undefined ? 1 : Math.max(0, input.maxNonceRetries));
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     const headers: Record<string, string> = {
       "content-type": "application/x-www-form-urlencoded",
       accept: "application/json",
@@ -272,9 +279,9 @@ export async function requestTokenResponse(input: {
 
     if (isOk(response)) {
       const text = await readText(response, "token");
-      const body = parseJson<unknown>(text, "The token response", (message) => new SebaAuthError(message));
+      const body = parseJson<unknown>(text, "The token response", (message) => new SebaAuthError(message, { stage: "token-response" }));
       if (typeof body !== "object" || body === null || Array.isArray(body)) {
-        throw new SebaAuthError("The token response is not a JSON object.");
+        throw new SebaAuthError("The token response is not a JSON object.", { stage: "token-response" });
       }
       return { ok: true, body: body as Record<string, unknown>, response };
     }
@@ -285,7 +292,7 @@ export async function requestTokenResponse(input: {
     const error = typeof parsed?.["error"] === "string" ? parsed["error"] : `http_${String(response.status)}`;
     const description = typeof parsed?.["error_description"] === "string" ? parsed["error_description"] : undefined;
 
-    if (error === "use_dpop_nonce" && challenge !== null && attempt === 0) {
+    if (error === "use_dpop_nonce" && challenge !== null && attempt + 1 < attempts) {
       nonce = challenge;
       continue;
     }
@@ -324,6 +331,8 @@ export async function exchangeAuthorizationCode(input: {
   nonce: string;
   signer: DPoPSigner;
   fetchImpl: typeof fetch;
+  /** See {@link SebaConfig.maxDpopNonceRetries}. */
+  maxDpopNonceRetries?: number;
   expectedWebId?: string;
   jwks?: JWTVerifyGetKey;
 }): Promise<AuthorizationResult> {
@@ -340,11 +349,13 @@ export async function exchangeAuthorizationCode(input: {
     body,
     signer: input.signer,
     fetchImpl: input.fetchImpl,
+    ...(input.maxDpopNonceRetries === undefined ? {} : { maxNonceRetries: input.maxDpopNonceRetries }),
   });
   if (!outcome.ok) {
     throw new SebaAuthError(
       `The token endpoint rejected the authorization code with "${outcome.error}"` +
         (outcome.description === undefined ? "." : `: ${outcome.description}`),
+      { stage: "token-exchange" },
     );
   }
 
@@ -357,6 +368,7 @@ export async function exchangeAuthorizationCode(input: {
     signer: input.signer,
     fetchImpl: input.fetchImpl,
     requireDpopBinding: input.configuration.scopesSupported?.includes("webid") === true,
+    ...(input.configuration.allowNonCompliantCnf === true ? { allowNonCompliantCnf: true } : {}),
     ...(input.expectedWebId === undefined ? {} : { expectedWebId: input.expectedWebId }),
     ...(input.jwks === undefined ? {} : { jwks: input.jwks }),
   });
@@ -378,6 +390,7 @@ export function parseTokenSet(body: Record<string, unknown>): TokenSet {
     throw new SebaAuthError(
       `The provider returned token_type "${tokenType}", but SEBA requires DPoP-bound tokens. ` +
         "The token was discarded; check that the provider supports DPoP.",
+      { stage: "token-response" },
     );
   }
   const idToken = requireString(body["id_token"], "id_token");
@@ -404,9 +417,28 @@ function requireString(value: unknown, field: string): string {
     throw new SebaAuthError(
       `The token response does not contain a usable "${field}" value. ` +
         "SEBA requires DPoP-bound access tokens together with an ID token.",
+      { stage: "token-response" },
     );
   }
   return value;
+}
+
+/**
+ * Copy the user's compliance-tolerance opt-ins onto a freshly discovered provider
+ * configuration, so every token-validation path (login, restore, refresh) honours
+ * flags that were declared on {@link SebaConfig} instead of being silently dropped.
+ * Only `true` values are copied; omitempty otherwise.
+ */
+export function applyComplianceTolerances(
+  configuration: OIDCConfiguration,
+  tolerances: { allowNonCompliantAudience?: boolean; allowNonCompliantCnf?: boolean } | undefined,
+): void {
+  if (tolerances?.allowNonCompliantAudience === true) {
+    configuration.allowNonCompliantAudience = true;
+  }
+  if (tolerances?.allowNonCompliantCnf === true) {
+    configuration.allowNonCompliantCnf = true;
+  }
 }
 
 /**
@@ -418,6 +450,26 @@ function requireString(value: unknown, field: string): string {
  *
  * @param input - Token, provider configuration, client identity and expectations.
  */
+let nonCompliantAudienceWarned = false;
+
+export function hasNonCompliantAudienceWarned(): boolean {
+  return nonCompliantAudienceWarned;
+}
+
+export function setNonCompliantAudienceWarned(value: boolean): void {
+  nonCompliantAudienceWarned = value;
+}
+
+let nonCompliantCnfWarned = false;
+
+export function hasNonCompliantCnfWarned(): boolean {
+  return nonCompliantCnfWarned;
+}
+
+export function setNonCompliantCnfWarned(value: boolean): void {
+  nonCompliantCnfWarned = value;
+}
+
 export async function validateIdToken(input: {
   idToken: string;
   configuration: OIDCConfiguration;
@@ -426,6 +478,7 @@ export async function validateIdToken(input: {
   signer?: DPoPSigner;
   fetchImpl?: typeof fetch;
   requireDpopBinding?: boolean;
+  allowNonCompliantCnf?: boolean;
   expectedWebId?: string;
   expectedSubject?: string;
   jwks?: JWTVerifyGetKey;
@@ -443,12 +496,12 @@ export async function validateIdToken(input: {
     payload = verified.payload as Record<string, unknown>;
   } catch (error) {
     if (error instanceof joseErrors.JOSEError) {
-      throw new SebaAuthError(`The ID token failed validation: ${error.message}.`, { cause: error });
+      throw new SebaAuthError(`The ID token failed validation: ${error.message}.`, { cause: error, stage: "id-token-signature" });
     }
     if (error instanceof SebaError) {
       throw error;
     }
-    throw new SebaAuthError("The ID token could not be verified.", { cause: error });
+    throw new SebaAuthError("The ID token could not be verified.", { cause: error, stage: "id-token-signature" });
   }
 
   const audience = payload["aud"];
@@ -457,36 +510,48 @@ export async function validateIdToken(input: {
   if (azp !== undefined && azp !== input.clientId) {
     throw new SebaAuthError(
       `The ID token was issued to authorized party "${String(azp)}", not to this client ("${input.clientId}").`,
+      { stage: "id-token-azp" },
     );
   }
   if (audiences.length > 1 && azp === undefined) {
-    throw new SebaAuthError("The ID token has multiple audiences but no \"azp\" claim.");
+    throw new SebaAuthError("The ID token has multiple audiences but no \"azp\" claim.", { stage: "id-token-azp" });
   }
   const solidRequired = input.configuration.scopesSupported?.includes("webid") === true;
   if (solidRequired && !audiences.includes("solid")) {
-    throw new SebaAuthError(
-      "The ID token audience does not include \"solid\". Solid-OIDC requires it when the provider advertises the webid scope.",
-    );
+    if (!input.configuration.allowNonCompliantAudience) {
+      throw new SebaAuthError(
+        "The ID token audience does not include \"solid\". Solid-OIDC requires it when the provider advertises the webid scope.",
+        { stage: "id-token-audience" },
+      );
+    }
+    if (!hasNonCompliantAudienceWarned()) {
+      setNonCompliantAudienceWarned(true);
+      console.warn(
+        "[SEBA] WARNING: Accepting an ID token without \"solid\" in aud because " +
+          "allowNonCompliantAudience is enabled. This weakens Solid-OIDC §8.1 audience " +
+          "guarantees. Disable this flag once your provider is compliant.",
+      );
+    }
   }
 
   if (input.nonce !== undefined && payload["nonce"] !== input.nonce) {
-    throw new SebaAuthError("The ID token nonce does not match the login that was started.");
+    throw new SebaAuthError("The ID token nonce does not match the login that was started.", { stage: "id-token-nonce" });
   }
 
   const issuedAt = payload["iat"];
   if (typeof issuedAt !== "number" || !Number.isFinite(issuedAt)) {
-    throw new SebaAuthError("The ID token has no usable \"iat\" claim.");
+    throw new SebaAuthError("The ID token has no usable \"iat\" claim.", { stage: "id-token-iat" });
   }
   const nowSeconds = Math.floor(Date.now() / 1000);
   if (issuedAt > nowSeconds + CLOCK_TOLERANCE_SECONDS) {
-    throw new SebaAuthError("The ID token was issued in the future; check the device clock.");
+    throw new SebaAuthError("The ID token was issued in the future; check the device clock.", { stage: "id-token-iat" });
   }
 
   await checkDpopBinding(payload, input);
 
   const subject = payload["sub"];
   if (typeof subject !== "string" || subject === "") {
-    throw new SebaAuthError("The ID token has no usable \"sub\" claim.");
+    throw new SebaAuthError("The ID token has no usable \"sub\" claim.", { stage: "id-token-sub" });
   }
   if (input.expectedSubject !== undefined && subject !== input.expectedSubject) {
     throw new SebaAuthError("The ID token subject does not match the stored session.");
@@ -497,6 +562,7 @@ export async function validateIdToken(input: {
     throw new SebaAuthError(
       `The provider authenticated "${webId}", but this login requested "${input.expectedWebId}". ` +
         "The session was not created.",
+      { stage: "id-token-webid" },
     );
   }
 
@@ -505,7 +571,7 @@ export async function validateIdToken(input: {
 
 async function checkDpopBinding(
   payload: Record<string, unknown>,
-  input: { signer?: DPoPSigner; requireDpopBinding?: boolean },
+  input: { signer?: DPoPSigner; requireDpopBinding?: boolean; allowNonCompliantCnf?: boolean },
 ): Promise<void> {
   const confirmation = payload["cnf"];
   const boundThumbprint =
@@ -515,22 +581,36 @@ async function checkDpopBinding(
 
   if (boundThumbprint !== undefined) {
     if (input.signer === undefined) {
-      throw new SebaAuthError("The ID token is bound to a DPoP key that is not available locally.");
+      throw new SebaAuthError("The ID token is bound to a DPoP key that is not available locally.", { stage: "id-token-cnf-binding" });
     }
     const thumbprint = await input.signer.thumbprint();
     if (boundThumbprint !== thumbprint) {
       throw new SebaAuthError(
         "The ID token is bound to a different DPoP key than the one used for this session. " +
           "The token was discarded.",
+        { stage: "id-token-cnf-binding" },
       );
     }
     return;
   }
 
   if (input.requireDpopBinding === true) {
+    if (input.allowNonCompliantCnf === true) {
+      if (!hasNonCompliantCnfWarned()) {
+        setNonCompliantCnfWarned(true);
+        console.warn(
+          "[SEBA] WARNING: Accepting an ID token without \"cnf.jkt\" because " +
+            "allowNonCompliantCnf is enabled. This weakens Solid-OIDC §8.1 DPoP-binding " +
+            "guarantees on the ID token; DPoP proofs remain mandatory on every request. " +
+            "Disable this flag once your provider is compliant.",
+        );
+      }
+      return;
+    }
     throw new SebaAuthError(
       "The ID token is not bound to a DPoP key (\"cnf.jkt\"), but the provider advertises the webid scope. " +
         "Solid-OIDC requires DPoP-bound tokens.",
+      { stage: "id-token-cnf-binding" },
     );
   }
 }
@@ -545,6 +625,7 @@ function extractWebId(payload: Record<string, unknown>, subject: string): string
     throw new SebaAuthError(
       `The ID token identifies the user as "${candidate}", which is not an absolute URL. ` +
         "A WebID must be an https URL; the session was not created.",
+      { stage: "id-token-webid" },
     );
   }
   if (url.protocol !== "https:" && !(url.protocol === "http:" && isLoopbackHost(url.hostname))) {
