@@ -176,6 +176,38 @@ describe("restore", () => {
     expect(manager.isAuthenticated).toBe(false);
   });
 
+  it("resumes a session stored without a refresh token using its access token", async () => {
+    const soon = Date.now() + 10 * 60 * 1000;
+    const { manager, tokenCalls } = harness(
+      storedSession({
+        refreshToken: undefined,
+        accessToken: "access-token-1",
+        accessTokenExpiresAt: soon,
+        scope: "openid webid",
+      }),
+    );
+    const session = await manager.restore();
+    expect(session).toEqual({ webId: WEB_ID, isLoggedIn: true, provider: ISSUER });
+    expect(manager.require().tokens.accessToken).toBe("access-token-1");
+    expect(manager.require().tokens.scope).toBe("openid webid");
+    expect(manager.require().expiresAt).toBe(soon);
+    expect(tokenCalls).toHaveLength(0);
+  });
+
+  it("clears an expired refresh-token-less session with a clear error", async () => {
+    const { manager, storage } = harness(
+      storedSession({
+        refreshToken: undefined,
+        accessToken: "access-token-1",
+        accessTokenExpiresAt: Date.now() - 1000,
+      }),
+    );
+    await expect(manager.restore()).rejects.toBeInstanceOf(SebaSessionExpiredError);
+    expect(manager.isAuthenticated).toBe(false);
+    expect(await storage.load()).toBeNull();
+    await expect(manager.restore()).resolves.toBeNull();
+  });
+
   it("refreshes the stored grant and rotates the refresh token", async () => {
     const { manager, storage, tokenCalls, tokenResponses } = harness(storedSession());
     tokenResponses.push(() => tokenResponse());
@@ -278,11 +310,13 @@ describe("adopt", () => {
     expect(JSON.stringify(saved)).not.toContain("access-token-1");
   });
 
-  it("stays in memory when the provider issued no refresh token", async () => {
+  it("persists the access token when the provider issued no refresh token", async () => {
     const { manager, storage } = harness(null);
     await adopt(manager, activeTokens({ idToken: await idToken(), refreshToken: undefined }));
     expect(manager.isAuthenticated).toBe(true);
-    expect(storage.raw()).toBeNull();
+    const saved = storage.raw();
+    expect(saved?.refreshToken).toBeUndefined();
+    expect(saved?.accessToken).toBe("access-token-1");
   });
 
   it("keeps the session usable when storage fails", async () => {
