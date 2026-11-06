@@ -18,6 +18,8 @@ the same in both.
 ## Requirements
 
 - Node.js 20 or newer, or any browser with Web Crypto (ES256), `fetch` and IndexedDB.
+  Chrome/Edge and Firefox are the tested browsers; Safari 17 or newer is expected to work
+  (older Safari versions fall back to an extractable-JWK DPoP key — see `SECURITY.md`).
 - A publicly dereferenceable **Solid Client ID Document** served over HTTPS.
 
 ## Install
@@ -80,9 +82,69 @@ const session = (await seba.restoreSession()) ?? (await seba.login());
 `login()` with no arguments opens a small built-in dialog asking for a WebID or an identity
 provider URL. Pass `{ webId }` or `{ issuer }` to skip it.
 
-### React
+### Sign-in button
 
-See [`examples/react/App.tsx`](examples/react/App.tsx).
+`<seba-login>` is a dependency-free custom element. Importing the package has no side
+effects; register the element once with `defineSebaLogin()`.
+
+```html
+<script type="module">
+  import { defineSebaLogin } from "@gaballahtech/seba";
+
+  defineSebaLogin();
+</script>
+
+<seba-login
+  client-id="https://app.example/client-id.jsonld"
+  redirect-uri="https://app.example/auth/callback"
+  issuer="https://idp.example"
+  theme="auto"
+  label="Sign in with Solid"
+></seba-login>
+
+<script type="module">
+  const button = document.querySelector("seba-login");
+  button.addEventListener("seba:login", (event) => {
+    console.log("signed in as", event.detail.session.webId);
+  });
+  button.addEventListener("seba:error", (event) => {
+    console.error(event.detail.error);
+  });
+</script>
+```
+
+The element starts the login on click, completes the callback when it is loaded on the
+redirect route, and switches to "Sign out" once a session exists. Attributes: `client-id`
+and `redirect-uri` (required), plus `issuer`, `web-id`, `label`, `theme` (`auto` | `light` |
+`dark`), `logo`, and `account`.
+
+React (`react` is an optional peer dependency):
+
+```tsx
+import { SebaLoginButton, useSession } from "@gaballahtech/seba/react";
+import type { Seba } from "@gaballahtech/seba";
+
+export function App({ seba }: { seba: Seba }) {
+  const session = useSession(seba); // null while signed out
+
+  return (
+    <>
+      <SebaLoginButton
+        clientId="https://app.example/client-id.jsonld"
+        redirectUri="https://app.example/auth/callback"
+        issuer="https://idp.example"
+        onLogin={(session) => console.log(session.webId)}
+      />
+      <p>{session ? session.webId : "Signed out"}</p>
+    </>
+  );
+}
+```
+
+The component registers `<seba-login>` on mount. `useSession` follows the session of an
+existing `Seba` instance (the one you use for `fetch`), while the button owns its own.
+
+See also [`examples/react/App.tsx`](examples/react/App.tsx).
 
 ## Node.js
 
@@ -169,6 +231,10 @@ logout(): Promise<void>
 Clears memory and storage first, then revokes the refresh token if the provider advertises a
 revocation endpoint. Revocation failures never block logout.
 
+> ⚠️ When the provider advertises no `revocation_endpoint` (e.g. solidweb.org), logout only
+> clears the local state — the refresh token remains valid on the server until it expires.
+> Revoke it out-of-band or let it lapse.
+
 ### `Session`
 
 ```ts
@@ -180,6 +246,75 @@ interface Session {
 ```
 
 No tokens, no keys, no expiry bookkeeping.
+
+### `onSessionChange(listener)` / `onSessionExpired(listener)`
+
+```ts
+onSessionChange(listener: (event: SessionChangeEvent) => void): () => void
+onSessionExpired(listener: (event: SessionChangeEvent) => void): () => void
+offSessionChange(listener: (event: SessionChangeEvent) => void): void
+getSession(): Promise<Session | null>
+```
+
+Subscribe before calling `login()`/`restoreSession()` so no transition is missed. Both
+subscribe methods return an unsubscribe function. Listener exceptions are swallowed and
+never interrupt the session flow.
+
+| Surface | Event | `detail` | Emitted when |
+|---|---|---|---|
+| Facade | `reason: "login"` | `{ reason, session }` | An interactive login finished and the session was stored. |
+| Facade | `reason: "restore"` | `{ reason, session }` | `restoreSession()` resumed a stored session. |
+| Facade | `reason: "logout"` | `{ reason, session: null }` | `logout()` cleared the local session. |
+| Facade | `reason: "expired"` | `{ reason, session: null }` | The session cannot continue; at most once per session. |
+| Element | `seba:login` | `{ session }` | Same as the `login` reason. |
+| Element | `seba:restore` | `{ session }` | Same as the `restore` reason. |
+| Element | `seba:logout` | `{ session: null }` | Same as the `logout` reason. |
+| Element | `seba:session-expired` | `{ session: null }` | Same as the `expired` reason. |
+| Element | `seba:error` | `{ error }` | A login, logout or configuration error in the component. |
+
+```ts
+const unsubscribe = seba.onSessionExpired(() => {
+  showSignInDialog();
+});
+```
+
+### `Seba.pod`
+
+Zero-dependency helpers for the Turtle subset used by Solid pods: `parseSubjectTriples`,
+`objectify` and `toTurtle` are also exported from the package root. They handle absolute
+IRIs, blank nodes, string/number/boolean literals, `@lang` and `^^<datatype>` suffixes, and
+ignore `@prefix`/`PREFIX`/`BASE` directives (prefix expansion is not performed).
+
+## Brand & logo usage
+
+All artwork is PNG. The five 512×512 files in [`assets/`](assets) are shipped through the
+`./assets/*` export and are also embedded as 64×64 PNG data URIs, so the sign-in button paints
+without a network request. No SVG is generated, fetched or required.
+
+| Variant | File | Use |
+|---|---|---|
+| `primary` | `assets/seba-logo-primary.png` | Accent-coloured logo on light backgrounds. |
+| `inverse` | `assets/seba-logo-inverse.png` | White logo on dark backgrounds. |
+| `monochrome` | `assets/seba-logo-monochrome.png` | Single-colour contexts, print, embossing. |
+| `solid` | `assets/seba-icon-solid.png` | Filled app icon. |
+| `favicon` | `assets/seba-icon-favicon.png` | Browser favicon and small avatars. |
+
+```html
+<link rel="icon" href="/node_modules/@gaballahtech/seba/assets/seba-icon-favicon.png" />
+<seba-login ... logo="inverse"></seba-login>
+<seba-login ... logo="none"></seba-login>
+```
+
+```ts
+import { sebaLogo, sebaLogoImage } from "@gaballahtech/seba";
+
+sebaLogo.primary.png;      // "assets/seba-logo-primary.png"
+sebaLogoImage("favicon");  // "data:image/png;base64,..."
+```
+
+Keep clear space of at least half the mark's height around the logo, do not recolour or
+distort it, and do not place the accent mark on a low-contrast accent background — use the
+`inverse` or `monochrome` treatment instead.
 
 ## Errors
 
@@ -222,14 +357,19 @@ restore → logout cycle was executed against that provider. If it was not, it s
 |---|---|---|---|
 | Hand-written fake provider (`tests/integration`) | Solid-OIDC-shaped: array `aud` with `"solid"`, `azp`, `cnf.jkt` | Full cycle in CI (`npm test`) | — |
 | Community Solid Server 7.3.0 | **Not conformant** with Solid-OIDC §8.1: ID token has a string `aud` without `"solid"`, no `cnf` | Discovery, Client ID Document, PKCE/state/nonce, consent, callback, DPoP token exchange all pass; login rejected at ID token validation | No |
-| solidcommunity.net | Discovery and issuer handling verified; issuer is `https://solidcommunity.net/` | Discovery only | **No** — no account was available |
+| solidcommunity.net (CSS-based) | **Not conformant** with Solid-OIDC §8.1: ID token `aud` lacks `"solid"`, no `cnf.jkt` (same issue family as CSS #2295). Also: advertises `offline_access` but the token response carries **no refresh token** (verified 2026-11-06; requested scope was `openid webid offline_access`) | Partial cycle with a real account (2026-11-05): login + consent + DPoP **Pod write/read** verified — the written file `seba-todos.ttl` was independently fetched and matched the app's input verbatim. Uses per-issuer `tolerances` for the two conformance gaps. Reload works inside the access-token lifetime via soft-persisted sessions | **No** — partial cycle only |
 | solidweb.org | Discovery verified; issuer is `https://solidweb.org` (no trailing slash); no revocation endpoint advertised | Discovery only | **No** — no account was available |
 | solidweb.me | Discovery verified; issuer is `https://solidweb.me/` | Discovery only | **No** — no account was available |
 
 > **⚠️ Community Solid Server 7.3.0**: CSS issues `id_token.aud` as a string instead of `["solid", client_id]` and omits `cnf.jkt`, violating Solid-OIDC §8.1. Seba correctly rejects this token. Track the upstream issue at https://github.com/CommunitySolidServer/CommunitySolidServer/issues/2295. Do not weaken Seba's validation to work around this.
+>
+> **solidcommunity.net** runs a CSS build from the same conformance family. Login completes only with the two documented opt-ins for that provider (`tolerances: { "https://solidcommunity.net/": { allowNonCompliantAudience: true, allowNonCompliantCnf: true } }`); everything else — signature, `client_id` audience, `iss`, PKCE, DPoP proofs on every request — is fully enforced.
 
-No public provider has completed the full cycle in this release. See
-[`VALIDATION_REPORT.md`](VALIDATION_REPORT.md) for transcripts and blockers, and
+Full-cycle validation against a **real public provider** (solidcommunity.net, 2026-11-05:
+login → consent → callback → token exchange → ID-token checks → DPoP fetch → Turtle write/read on
+the Pod) is documented in the validating application's TEST_REPORT.md. Remaining unvalidated steps on
+public providers: `restoreSession()` across a reload and `logout()` revocation. See
+[`VALIDATION_REPORT.md`](VALIDATION_REPORT.md) for the earlier transcripts and blockers, and
 [`CHANGELOG.md`](CHANGELOG.md) for what changed.
 
 SEBA does not support dynamic client registration. The Client ID Document URL is the

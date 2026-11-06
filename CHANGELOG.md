@@ -1,5 +1,127 @@
 # Changelog
 
+## [0.5.0] — 2026-11-06
+
+Additive release: a drop-in sign-in component, session events, Pod helpers and React
+bindings. No behaviour change to login, refresh, storage or validation.
+
+### Added
+
+- **`<seba-login>`** — a zero-dependency custom element with shadow DOM. It starts the login,
+  completes the callback on the redirect route, exposes `login()`/`logout()`/`session`, and
+  switches between "Sign in" and "Sign out". Attributes: `client-id`, `redirect-uri`,
+  `issuer`, `web-id`, `label`, `theme` (`auto`/`light`/`dark`), `logo`, `account`. Register it
+  with `defineSebaLogin()`; importing the package stays side-effect free.
+- **Session events** — `onSessionChange`, `offSessionChange`, `onSessionExpired` and
+  `getSession()` on the facade, plus `SessionChangeEvent`/`SessionChangeReason` types.
+  Reasons: `login`, `restore`, `logout`, `expired`; `expired` fires at most once per session.
+  Listener exceptions are swallowed so application callbacks cannot break session handling.
+- **`Seba.pod`** — `parseSubjectTriples`, `objectify` and `toTurtle`, also exported from the
+  package root zero-dependency helpers for the Turtle subset used by Solid pods.
+- **React bindings** — `@gaballahtech/seba/react` exports `SebaLoginButton` and `useSession`.
+  `react` is an optional peer dependency; the core entry point never imports it.
+- **PNG brand assets** — five 512×512 PNGs in `assets/` (primary, inverse, monochrome, solid,
+  favicon) served through the `./assets/*` export, plus 64×64 PNG data URIs embedded for the
+  component. No SVG is used or shipped. The source PNGs were re-encoded losslessly (pixel
+  comparison unchanged) and now total ~24 kB instead of ~64 kB.
+
+### Notes
+
+- This release has **not yet been tested against a provider** in its component/React form.
+  The underlying login, refresh and DPoP paths are unchanged from 0.4.0.
+
+## [0.4.0] — 2026-11-05
+
+Completeness release driven by the first public full-cycle validation
+(solidcommunity.net login → fetch → Pod write; see the validating app's TEST_REPORT.md).
+
+### Fixed (2026-11-06, same release, second validation round)
+
+- **All resource fetches and token requests now use `cache: "no-cache"`.** Community
+  Solid Server emits no `Cache-Control` on resource GETs, so browsers apply heuristic
+  freshness — a burst of rapid writes reads a heuristically stale pre-PUT ETag and every
+  conditional `PUT` with `If-Match` fails with `412` (reproduced and diagnosed live via
+  instrumented saves: fresh GET → correct `If-Match` → `412`, deterministically, while
+  the server never saw a race). `seba.fetch` no longer trusts local caches.
+- **Sessions are persisted even when the provider issues no refresh token** (soft-persist).
+  The record then contains the access token + DPoP key + expiry, and
+  `restoreSession()` resumes the session until the access token expires. Only refresh-token
+  sessions never store the access token (unchanged principle: refresh token or nothing).
+  Expiry on restore clears the record with an explicit `SebaSessionExpiredError`
+  ("…the provider issued no refresh token…"). This keeps reload working against providers
+  like solidcommunity.net, which advertise `offline_access` yet issue no refresh token
+  (verified from a real token exchange).
+
+### Added
+
+- **Per-issuer compliance tolerances** (`tolerances?: Record<string, ComplianceTolerances>`).
+  Relax `allowNonCompliantAudience` / the new `allowNonCompliantCnf` for one provider
+  only while every other provider stays fully strict. Entries match the issuer exactly
+  or modulo a trailing slash, and override the global boolean flags. Applications that
+  talk to more than one provider should switch from the global flags to this.
+- **`allowNonCompliantCnf`** (`SebaConfig` and `OIDCConfiguration`): escape hatch (same
+  warn-once pattern) for providers whose ID tokens omit `cnf.jkt` while still issuing
+  DPoP-bound access tokens (solidcommunity.net does exactly this). DPoP proofs remain
+  mandatory on every request; a present `cnf.jkt` is still verified against the session
+  key; signature, `iss`, `exp`/`iat`, `nonce`, `azp` and `client_id` audience checks stay on.
+- **`error.stage`** — stable step identifier on every `SebaError` (`token-exchange`,
+  `id-token-signature`, `id-token-audience`, `id-token-cnf-binding`,
+  `authorization-response-*`, `network`, …) so applications/support can pinpoint where a
+  login failed without parsing messages.
+- **`maxDpopNonceRetries`** (default 1, previously hard-coded) for both the token-endpoint
+  and the resource-fetch `use_dpop_nonce` challenge loops; providers rotating nonces on
+  every request benefit from 2–3.
+- **`account`** config option: per-account storage namespace (`seba:<account>` IndexedDB
+  database plus a namespaced sessionStorage transaction key) enabling more than one
+  concurrent session in the same browser profile.
+- **`Seba.getSessionInfo()`** returns a token-free `{ webId, provider, accessTokenExpiresAt }`
+  snapshot so applications can warn before the access token expires.
+- **`Seba.completeLogin()`** completes a pending callback without falling back to starting
+  a login — pairs with `Seba.isCallbackResponse(url?)` for the explicit
+  "login() on click, completeLogin() on the callback route" pattern that avoids the
+  never-settling redirect promise. `login()` itself still handles both roles.
+- **MIGRATION.md** with a `@inrupt/solid-client-authn-browser` mapping.
+
+### Fixed
+
+- **`allowNonCompliantAudience` was dead code.** Declared on `SebaConfig` and read from the
+  provider configuration during token validation, but never copied between the two: it is
+  now carried through `resolveConfig` and stamped onto every discovered configuration at all
+  three paths (login start, login completion, `SessionManager.discover`) via
+  `applyComplianceTolerances`.
+- **`SebaNetworkError` message** now names CORS as the first browser-side suspect, instead of
+  only mentioning Node.js proxies.
+- **logout without a provider revocation endpoint** now logs that the refresh token remains
+  valid server-side until expiry, instead of silently returning.
+
+## [0.3.1] — 2026-11-05
+
+Fixes found during the first real-world login attempt against `solidcommunity.net`
+(manual browser flow, tunnel-published Client ID Document;see the app's TEST_REPORT.md).
+
+### Fixed
+
+- **`allowNonCompliantAudience` was dead code.** The flag was declared on `SebaConfig`
+  (types.d.ts:75) and documented as the opt-in for providers such as `solidcommunity.net`,
+  and `checkIdTokenAudience` read it from the provider configuration object — but nothing
+  ever copied it from the user's `Seba` config into that object. `resolveConfig` dropped
+  the unknown key, and `discoverProvider` builds the configuration purely from the
+  discovery document, so setting the flag had zero effect and the 0.2.1 hard-throw still
+  fired. It is now carried through `resolveConfig` (`ResolvedConfig`) and stamped onto
+  every discovered provider configuration at all three paths — login start (`#beginLogin`),
+  login completion (`#completeLogin`) and the `SessionManager` `discover` callback that
+  backs restore/refresh — via a new `applyComplianceTolerances` helper.
+
+### Added
+
+- **`allowNonCompliantCnf`** (`SebaConfig` and `OIDCConfiguration`), the same escape-hatch
+  pattern as `allowNonCompliantAudience`, for providers whose ID tokens omit `cnf.jkt`
+  while still issuing DPoP-bound access tokens (solidcommunity.net does exactly this:
+  its ID token has no `cnf` claim). DPoP proofs remain mandatory on every request, an
+  ID token that DOES carry `cnf.jkt` is still checked against the session key, and
+  signature, `iss`, `exp`/`iat`, `nonce`, `azp` and the `client_id` audience checks all
+  stay enforced. Warns once via `console.warn` when it suppresses the requirement.
+
 ## [0.2.1] — 2026-11-05
 
 Documentation-only patch. No runtime behaviour changed; the only functional difference is
