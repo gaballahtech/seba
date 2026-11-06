@@ -58,6 +58,97 @@ export interface SebaConfig {
    * {@link Seba.login} throws a `SebaNoUIError`.
    */
   openAuthorizationUrl?: (url: string) => void | Promise<void>;
+
+  /**
+   * Opt-in escape hatch for non-compliant Solid providers (see Security guide).
+   *
+   * Solid-OIDC §8.1 requires `"solid"` in the ID token `aud` claim when the provider
+   * advertises the `webid` scope. Some real-world providers (e.g. `solidcommunity.net`)
+   * issue `aud` as a plain string without `"solid"`. When `true`, Seba accepts such
+   * tokens, but only the `"solid"` audience requirement is relaxed — signature
+   * verification, `iss`, `exp`/`iat`, `nonce`, `cnf.jkt` and the `client_id` audience
+   * check are all still enforced.
+   *
+   * @default false
+   * @example
+   * ```ts
+   * const seba = new Seba({
+   *   clientId: "...",
+   *   redirectUri: "...",
+   *   allowNonCompliantAudience: true, // only for known-broken providers
+   * });
+   * ```
+   */
+  allowNonCompliantAudience?: boolean;
+
+  /**
+   * Opt-in escape hatch for non-compliant Solid providers (see Security guide).
+   *
+   * Solid-OIDC §8.1 requires the ID token to carry a `cnf` claim with a `jkt` member
+   * binding it to the DPoP key when the provider advertises the `webid` scope. Some
+   * real-world providers (e.g. `solidcommunity.net`) omit `cnf.jkt` from the ID token
+   * while still issuing DPoP-bound access tokens. When `true`, the `cnf.jkt` presence
+   * requirement is relaxed for such ID tokens — everything else stays enforced: DPoP
+   * proofs are still signed and required on every request, an ID token that DOES carry
+   * `cnf.jkt` is still checked against the session key, and signature verification,
+   * `iss`, `exp`/`iat`, `nonce`, `azp` and the `client_id` audience check all remain on.
+   *
+   * @default false
+   */
+  allowNonCompliantCnf?: boolean;
+
+  /**
+   * Compliance relaxations keyed by provider issuer URL, applied only when the login
+   * targets that exact issuer (compared after normalizing an optional trailing slash).
+   * Entries override the global boolean flags for that provider, and providers NOT
+   * listed keep full strict validation — prefer this over the global flags whenever
+   * the application talks to more than one provider.
+   *
+   * @example
+   * ```ts
+   * tolerances: {
+   *   "https://solidcommunity.net/": { allowNonCompliantAudience: true, allowNonCompliantCnf: true },
+   * }
+   * ```
+   */
+  tolerances?: Record<string, ComplianceTolerances>;
+
+  /**
+   * How many `use_dpop_nonce` challenges the token endpoint may issue before SEBA
+   * gives up. Each retry signs a brand-new DPoP proof with the fresh nonce. The
+   * resource-fetch path applies the same count. Providers that rotate nonces on
+   * every request benefit from 2–3.
+   *
+   * @defaultValue 1
+   */
+  maxDpopNonceRetries?: number;
+
+  /**
+   * Storage namespace enabling more than one concurrent session in the same browser
+   * profile (multi-account). Each distinct account value gets its own IndexedDB
+   * database (`seba:<account>`) and sessionStorage transaction key, so two `Seba`
+   * instances with different accounts do not overwrite each other. Node.js sessions
+   * are already per-instance in memory.
+   *
+   * @defaultValue undefined (single unnamed session, as in earlier releases)
+   */
+  account?: string;
+}
+
+/** Relaxations for a single provider, used by {@link SebaConfig.tolerances}. */
+export interface ComplianceTolerances {
+  /** Relax the `"solid"` ID-token audience requirement for this provider. */
+  allowNonCompliantAudience?: boolean;
+  /** Relax the `cnf.jkt` presence requirement on this provider's ID tokens. */
+  allowNonCompliantCnf?: boolean;
+}
+
+/** Token-free snapshot of session state, safe to render or log. */
+export interface SessionInfo {
+  webId: string;
+  provider: string;
+  /** Access token expiry (epoch milliseconds), or `null` when unknown. */
+  accessTokenExpiresAt: number | null;
 }
 
 /** Optional identity hints for {@link Seba.login}. */
@@ -81,6 +172,27 @@ export interface Session {
   /** Identity provider issuer URL that was validated for this session. */
   provider: string;
 }
+
+/** Why a session changed. */
+export type SessionChangeReason = "login" | "logout" | "restore" | "expired";
+
+/**
+ * Emitted after every session transition.
+ *
+ * `expired` fires at most once per session, the first time SEBA determines that the
+ * session cannot continue (revoked grant, expired stored token with no refresh token,
+ * or an access token rejected with no way to renew it). It is also emitted with
+ * `session: null`.
+ */
+export interface SessionChangeEvent {
+  /** Transition that just happened. */
+  readonly reason: SessionChangeReason;
+  /** Session after the transition, or `null` after logout/expiry. */
+  readonly session: Session | null;
+}
+
+/** Listener accepted by `onSessionChange`. */
+export type SessionChangeListener = (event: SessionChangeEvent) => void;
 
 /**
  * A token response that passed validation.
@@ -152,6 +264,27 @@ export interface OIDCConfiguration {
   scopesSupported?: string[];
   /** Grant types advertised by the provider, when present. */
   grantTypesSupported?: string[];
+  /**
+   * Opt-in escape hatch for non-compliant Solid providers (see SECURITY.md).
+   *
+   * When `true`, the `"solid"` requirement in the ID token `aud` claim is relaxed for
+   * providers that violate Solid-OIDC §8.1 (e.g. `solidcommunity.net`). Everything else
+   * stays enforced: signature, `iss`, `exp`/`iat`, `nonce`, `cnf.jkt`, and the
+   * `client_id` audience check. Default `false`.
+   */
+  allowNonCompliantAudience?: boolean;
+
+  /**
+   * Opt-in escape hatch for non-compliant Solid providers (see SECURITY.md).
+   *
+   * When `true`, the `cnf.jkt` presence requirement on the ID token is relaxed for
+   * providers whose ID tokens carry no DPoP binding while the provider still issues
+   * DPoP-bound access tokens (e.g. `solidcommunity.net`). DPoP proofs remain mandatory
+   * on every request, an ID token that DOES carry `cnf.jkt` is still checked against
+   * the session key, and signature, `iss`, `exp`/`iat`, `nonce` and the `client_id`
+   * audience check all stay enforced. Default `false`.
+   */
+  allowNonCompliantCnf?: boolean;
 }
 
 /** A validated Solid Client ID Document. */
@@ -200,8 +333,17 @@ export interface PersistedSession {
   provider: string;
   /** Client identifier the session was created for. */
   clientId: string;
-  /** Refresh token. Never an access token. */
-  refreshToken: string;
+  /** Refresh token, when the provider issued one. Never an access token. */
+  refreshToken?: string;
+  /**
+   * Access token, stored only when the provider issued no refresh token so that
+   * {@link Seba.restoreSession} can resume the session until it expires.
+   */
+  accessToken?: string;
+  /** Expiry of the stored access token (epoch ms), or `null` when unknown. */
+  accessTokenExpiresAt?: number | null;
+  /** `sub` claim, when known. */
+  subject?: string;
   /** DPoP private key bound to the refresh token. */
   key: PersistedKey;
   /** Granted scopes, when known. */

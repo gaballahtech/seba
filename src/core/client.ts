@@ -18,6 +18,7 @@ import {
   validateWebId,
 } from "./identity.js";
 import {
+  applyComplianceTolerances,
   buildAuthorizationUrl,
   createPendingAuthorization,
   exchangeAuthorizationCode,
@@ -26,7 +27,25 @@ import {
 } from "./oidc.js";
 import { SessionManager } from "./session.js";
 import { assertStorageKind } from "./session.js";
-import type { LoginOptions, Platform, SebaConfig, Session, StorageKind } from "../types.js";
+import type { ComplianceTolerances, LoginOptions, Platform, SebaConfig, Session, SessionChangeListener, SessionInfo, StorageKind } from "../types.js";
+
+/**
+ * Authorization-response parameters an OAuth2 provider may append to the callback URL.
+ * Presence of a `code` (or an OAuth `error`) together with `state` marks a callback.
+ */
+/** Parameters that on their own mark an authorization response (state is the pairing check). */
+const RESPONSE_MARKER_PARAMS = ["code", "error", "error_description", "error_uri"];
+
+/**
+ * Decide whether a URL carries an authorization response.
+ *
+ * Exported through the facade as {@link Seba.isCallbackResponse}.
+ */
+export function isAuthorizationResponse(url: URL): boolean {
+  const hasState = url.searchParams.has("state");
+  const hasResponseContent = RESPONSE_MARKER_PARAMS.some((name) => url.searchParams.has(name));
+  return hasState && hasResponseContent;
+}
 
 /** HTTP statuses that carry a `Location` header. */
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
@@ -49,6 +68,11 @@ interface ResolvedConfig {
   readonly storage: StorageKind;
   readonly debug: boolean;
   readonly openAuthorizationUrl?: (url: string) => void | Promise<void>;
+  readonly allowNonCompliantAudience?: boolean;
+  readonly allowNonCompliantCnf?: boolean;
+  readonly tolerances?: Record<string, ComplianceTolerances>;
+  readonly maxDpopNonceRetries: number;
+  readonly account?: string;
 }
 
 /**
@@ -63,14 +87,22 @@ export class SebaClient {
   readonly #sessions: SessionManager;
   #nonce: string | null = null;
 
-  constructor(config: SebaConfig, platform: Platform) {
+  constructor(config: SebaConfig, platform: Platform, options: { onSessionChange?: SessionChangeListener } = {}) {
     this.#platform = platform;
     this.#config = resolveConfig(config, platform);
     this.#sessions = new SessionManager({
       clientId: this.#config.clientId,
       storage: platform.createStorage(this.#config.storage),
       fetchImpl: platform.fetch,
-      discover: (issuer) => discoverProvider(issuer, platform.fetch),
+      maxDpopNonceRetries: this.#config.maxDpopNonceRetries,
+      onSessionChange: (event) => {
+        options.onSessionChange?.(event);
+      },
+      discover: (issuer) =>
+        discoverProvider(issuer, platform.fetch).then((configuration) => {
+          applyComplianceTolerances(configuration, this.#tolerances(configuration.issuer));
+          return configuration;
+        }),
       debug: (message) => {
         this.#debug(message);
       },
@@ -90,6 +122,46 @@ export class SebaClient {
    * started: the returned promise resolves after the redirect in Node.js and never
    * settles in the browser (the page navigates away).
    */
+  /**
+   * Resolve the compliance relaxations that apply to a given issuer: the per-issuer
+   * `tolerances` entry (matched exactly or modulo a trailing slash) wins over the
+   * global boolean flags; providers without an entry stay fully strict.
+   */
+  #tolerances(issuer: string): ComplianceTolerances {
+    const result: ComplianceTolerances = {};
+    if (this.#config.allowNonCompliantAudience === true) {
+      result.allowNonCompliantAudience = true;
+    }
+    if (this.#config.allowNonCompliantCnf === true) {
+      result.allowNonCompliantCnf = true;
+    }
+    const perIssuer = this.#config.tolerances?.[issuer];
+    if (perIssuer !== undefined) {
+      if (perIssuer.allowNonCompliantAudience === true) {
+        result.allowNonCompliantAudience = true;
+      }
+      if (perIssuer.allowNonCompliantCnf === true) {
+        result.allowNonCompliantCnf = true;
+      }
+      return result;
+    }
+    // Tolerate a trailing-slash mismatch either way (https://id.example vs https://id.example/).
+    for (const [toleranceIssuer, entry] of Object.entries(this.#config.tolerances ?? {})) {
+      const a = toleranceIssuer.replace(/\/+$/, "");
+      const b = issuer.replace(/\/+$/, "");
+      if (a === b) {
+        if (entry.allowNonCompliantAudience === true) {
+          result.allowNonCompliantAudience = true;
+        }
+        if (entry.allowNonCompliantCnf === true) {
+          result.allowNonCompliantCnf = true;
+        }
+        return result;
+      }
+    }
+    return result;
+  }
+
   async login(options: LoginOptions = {}): Promise<Session> {
     const callbackUrl = this.#callbackUrl();
     if (callbackUrl !== null) {
@@ -100,6 +172,46 @@ export class SebaClient {
       return existing;
     }
     return this.#startLogin(options);
+  }
+
+  /**
+   * Complete a login from the current URL without any fallback to starting a new one.
+   * Intended for the explicit application pattern "call login() on the click that
+   * starts the flow, call completeLogin() on the callback route".
+   *
+   * @throws SebaAuthError when the current URL carries no authorization response.
+   */
+  async completeLoginFromCurrentUrl(): Promise<Session> {
+    const callbackUrl = this.#callbackUrl();
+    const asUrl = callbackUrl === null ? null : (() => {
+      try {
+        return new URL(callbackUrl);
+      } catch {
+        return null;
+      }
+    })();
+    if (asUrl === null || !isAuthorizationResponse(asUrl)) {
+      throw new SebaAuthError(
+        "The current URL does not carry an authorization response " +
+          "(no code/error + state parameters). Use completeLogin() only on the callback route, " +
+          "or call login() to start a new login.",
+        { stage: "authorization-response" },
+      );
+    }
+    return this.#completeLogin(asUrl.href);
+  }
+
+  /** Token-free session details (WebID, provider, access-token expiry), or `null`. */
+  sessionInfo(): SessionInfo | null {
+    const session = this.#sessions.toPublicSession();
+    if (session === null) {
+      return null;
+    }
+    return {
+      webId: session.webId,
+      provider: session.provider,
+      accessTokenExpiresAt: this.#sessions.expiresAt,
+    };
   }
 
   /**
@@ -138,7 +250,7 @@ export class SebaClient {
       headers: new Headers(template.headers),
     };
     let redirects = 0;
-    let nonceRetried = false;
+    let nonceRetries = 0;
     let tokenRetried = false;
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
@@ -179,8 +291,8 @@ export class SebaClient {
       }
 
       if (response.status === 400 || response.status === 401) {
-        if (nonce !== null && !nonceRetried && replayable) {
-          nonceRetried = true;
+        if (nonce !== null && nonceRetries < this.#config.maxDpopNonceRetries && replayable) {
+          nonceRetries += 1;
           continue;
         }
         if (response.status === 401 && !tokenRetried && replayable) {
@@ -213,6 +325,10 @@ export class SebaClient {
       method: request.method,
       headers,
       redirect: "manual",
+      // Authenticated Solid fetches must not be answered by a heuristically-stale
+      // browser cache: a cached pre-PUT read makes If-Match preconditions fail
+      // (HTTP 412 even though the server state is unchanged).
+      cache: "no-cache",
     };
     if (body !== null && request.method !== "GET" && request.method !== "HEAD") {
       init.body = body;
@@ -252,6 +368,7 @@ export class SebaClient {
     }
 
     const configuration = await discoverProvider(issuer, this.#platform.fetch);
+    applyComplianceTolerances(configuration, this.#tolerances(configuration.issuer));
     const document = await loadClientIdDocument(this.#config.clientId, this.#platform.fetch);
     assertRedirectUriPublished(document, this.#config.redirectUri);
 
@@ -302,6 +419,7 @@ export class SebaClient {
 
     const code = parseAuthorizationResponse(callbackUrl, pending);
     const configuration = await discoverProvider(pending.issuer, this.#platform.fetch);
+    applyComplianceTolerances(configuration, this.#tolerances(configuration.issuer));
     const material = await createDPoPKey();
     const result = await exchangeAuthorizationCode({
       configuration,
@@ -312,8 +430,15 @@ export class SebaClient {
       nonce: pending.nonce,
       signer: material.signer,
       fetchImpl: this.#platform.fetch,
+      maxDpopNonceRetries: this.#config.maxDpopNonceRetries,
       ...(pending.webId === undefined ? {} : { expectedWebId: pending.webId }),
     });
+
+    this.#debug(
+      `token response: scope=${result.tokens.scope ?? "(not advertised)"}, ` +
+        `refresh_token=${result.tokens.refreshToken === undefined ? "ABSENT" : "present"}, ` +
+        `expires_in=${result.tokens.expiresIn ?? "(not advertised)"}`,
+    );
 
     await this.#sessions.adopt({
       tokens: result.tokens,
@@ -392,12 +517,31 @@ function resolveConfig(config: SebaConfig, platform: Platform): ResolvedConfig {
   const storage = config.storage ?? platform.defaultStorage;
   assertStorageKind(storage);
 
+  let maxDpopNonceRetries = 1;
+  if (config.maxDpopNonceRetries !== undefined) {
+    if (!Number.isInteger(config.maxDpopNonceRetries) || config.maxDpopNonceRetries < 0) {
+      throw new SebaConfigError("maxDpopNonceRetries must be a non-negative integer.");
+    }
+    maxDpopNonceRetries = config.maxDpopNonceRetries;
+  }
+  if (config.account !== undefined && !/^[A-Za-z0-9_-]{1,64}$/.test(config.account)) {
+    throw new SebaConfigError(
+      "account must be 1-64 characters of [A-Za-z0-9_-] " +
+        "(it names the IndexedDB database for the session storage).",
+    );
+  }
+
   return {
     clientId,
     redirectUri: config.redirectUri,
     storage,
     debug: config.debug === true,
     ...(config.openAuthorizationUrl === undefined ? {} : { openAuthorizationUrl: config.openAuthorizationUrl }),
+    ...(config.allowNonCompliantAudience === true ? { allowNonCompliantAudience: true } : {}),
+    ...(config.allowNonCompliantCnf === true ? { allowNonCompliantCnf: true } : {}),
+    ...(config.tolerances === undefined ? {} : { tolerances: config.tolerances }),
+    maxDpopNonceRetries,
+    ...(config.account === undefined ? {} : { account: config.account }),
   };
 }
 

@@ -20,6 +20,8 @@ import type {
   PersistedKey,
   PersistedSession,
   Session,
+  SessionChangeListener,
+  SessionChangeReason,
   SessionStorageAdapter,
   TokenSet,
 } from "../types.js";
@@ -42,8 +44,8 @@ export interface SessionState {
   readonly key: PersistedKey;
   /** Client identifier the session belongs to. */
   readonly clientId: string;
-  /** Discovery metadata used for refresh and revocation. */
-  readonly configuration: OIDCConfiguration;
+  /** Discovery metadata used for refresh and revocation; `null` for sessions resumed without discovery. */
+  readonly configuration: OIDCConfiguration | null;
   /** Access token expiry (epoch milliseconds), or `null` when unknown. */
   readonly expiresAt: number | null;
 }
@@ -58,8 +60,15 @@ export interface SessionManagerOptions {
   readonly fetchImpl: typeof fetch;
   /** Re-discover a provider when restoring a session. */
   readonly discover: (issuer: string) => Promise<OIDCConfiguration>;
+  /**
+   * How many `use_dpop_nonce` challenges the token endpoint may issue before giving up.
+   * @defaultValue 1
+   */
+  readonly maxDpopNonceRetries?: number;
   /** Non-sensitive diagnostics. */
   readonly debug?: (message: string) => void;
+  /** Receives session transitions (`login`, `restore`, `logout`, `expired`). */
+  readonly onSessionChange?: SessionChangeListener;
 }
 
 /**
@@ -71,6 +80,7 @@ export class SessionManager {
   readonly #options: SessionManagerOptions;
   #state: SessionState | null = null;
   #refreshing: Promise<void> | null = null;
+  #expiredNotified = false;
 
   constructor(options: SessionManagerOptions) {
     this.#options = options;
@@ -131,25 +141,39 @@ export class SessionManager {
     };
     this.#state = state;
 
-    if (input.tokens.refreshToken !== undefined) {
-      const record: PersistedSession = {
-        version: 1,
-        webId: state.identity.webId,
-        provider: state.identity.issuer,
-        clientId: state.clientId,
-        refreshToken: input.tokens.refreshToken,
-        key: input.key,
-        createdAt: Date.now(),
-        ...(input.tokens.scope === undefined ? {} : { scope: input.tokens.scope }),
-      };
-      try {
-        await this.#options.storage.save(record);
-      } catch (error) {
-        this.#log("session storage is unavailable; the session will not survive a reload", error);
-      }
-    } else {
-      this.#log("the provider issued no refresh token; the session will not survive a reload");
+    const noRefreshToken = input.tokens.refreshToken === undefined;
+    const record: PersistedSession = {
+      version: 1,
+      webId: state.identity.webId,
+      provider: state.identity.issuer,
+      clientId: state.clientId,
+      ...(noRefreshToken
+        ? {
+            // With no refresh token there is nothing else to fetch with after a
+            // reload, so the access token is stored to keep the session alive
+            // until it expires. It is never stored for refresh-token sessions.
+            accessToken: input.tokens.accessToken,
+            accessTokenExpiresAt: state.expiresAt,
+            subject: input.identity.subject,
+          }
+        : {}),
+      ...(noRefreshToken ? {} : { refreshToken: input.tokens.refreshToken }),
+      key: input.key,
+      createdAt: Date.now(),
+      ...(input.tokens.scope === undefined ? {} : { scope: input.tokens.scope }),
+    };
+    try {
+      await this.#options.storage.save(record);
+    } catch (error) {
+      this.#log("session storage is unavailable; the session will not survive a reload", error);
     }
+    if (noRefreshToken) {
+      this.#log(
+        "the provider issued no refresh token; the session is stored with its access token and expires when the token does",
+      );
+    }
+    this.#expiredNotified = false;
+    this.#emit("login");
     return state;
   }
 
@@ -178,13 +202,72 @@ export class SessionManager {
       signer = await loadDPoPKey(record.key);
     } catch (error) {
       await this.clearLocal();
+      this.#signalExpired();
       throw new SebaSessionExpiredError("The stored DPoP key is unusable; the session was cleared.", {
         cause: error,
       });
     }
 
+    if (record.refreshToken === undefined) {
+      return this.#restoreWithoutRefreshToken(record, signer);
+    }
+
     const configuration = await this.#options.discover(record.provider);
     await this.#refreshWith(record, signer, configuration);
+    this.#expiredNotified = false;
+    this.#emit("restore");
+    return this.toPublicSession();
+  }
+
+  /**
+   * Resume a session stored without a refresh token. The stored access token is
+   * reused while it is still valid; once it expires the record is cleared with a
+   * clear error because nothing on disk can renew it.
+   */
+  async #restoreWithoutRefreshToken(
+    record: PersistedSession,
+    signer: DPoPSigner,
+  ): Promise<Session | null> {
+    if (record.accessToken === undefined || record.accessToken === "") {
+      await this.clearLocal();
+      this.#signalExpired();
+      throw new SebaSessionExpiredError(
+        "The stored session has no usable credential; it was cleared. Sign in again.",
+      );
+    }
+    if (
+      record.accessTokenExpiresAt !== undefined &&
+      record.accessTokenExpiresAt !== null &&
+      Date.now() >= record.accessTokenExpiresAt - EXPIRY_SKEW_MS
+    ) {
+      await this.clearLocal();
+      this.#signalExpired();
+      throw new SebaSessionExpiredError(
+        "The stored access token has expired and the provider issued no refresh token, so the session was cleared. Sign in again.",
+      );
+    }
+    const tokens: TokenSet = {
+      // Only the access token matters here: sessions restored without a refresh
+      // token cannot refresh, so idToken is never read on this path.
+      tokenType: "DPoP",
+      accessToken: record.accessToken,
+      idToken: "",
+      ...(record.scope === undefined ? {} : { scope: record.scope }),
+    };
+    this.#state = {
+      tokens,
+      identity: { webId: record.webId, issuer: record.provider, subject: record.subject ?? record.webId },
+      signer,
+      key: record.key,
+      clientId: this.#options.clientId,
+      configuration: null,
+      expiresAt: record.accessTokenExpiresAt ?? null,
+    };
+    this.#log(
+      "restored the session with the stored access token (the provider issued no refresh token; it expires with the token)",
+    );
+    this.#expiredNotified = false;
+    this.#emit("restore");
     return this.toPublicSession();
   }
 
@@ -203,6 +286,7 @@ export class SessionManager {
     const state = this.require();
     if (state.tokens.refreshToken === undefined) {
       if (force) {
+        this.#signalExpired();
         throw new SebaSessionExpiredError(
           "The access token was rejected and no refresh token is available. Sign in again.",
         );
@@ -234,7 +318,12 @@ export class SessionManager {
     const record = await this.#options.storage.load();
     const refreshToken = state.tokens.refreshToken ?? record?.refreshToken;
     if (refreshToken === undefined) {
+      this.#signalExpired();
       throw new SebaSessionExpiredError("No refresh token is available. Sign in again.");
+    }
+    if (state.configuration === null) {
+      this.#signalExpired();
+      throw new SebaSessionExpiredError("No provider metadata is available for this session. Sign in again.");
     }
     const stored: PersistedSession = record ?? {
       version: 1,
@@ -253,6 +342,9 @@ export class SessionManager {
     signer: DPoPSigner,
     configuration: OIDCConfiguration,
   ): Promise<void> {
+    if (record.refreshToken === undefined) {
+      throw new SebaSessionExpiredError("No refresh token is available. Sign in again.");
+    }
     const body = new URLSearchParams({
       grant_type: "refresh_token",
       refresh_token: record.refreshToken,
@@ -264,6 +356,7 @@ export class SessionManager {
       body,
       signer,
       fetchImpl: this.#options.fetchImpl,
+      maxNonceRetries: this.#options.maxDpopNonceRetries,
     });
 
     if (!outcome.ok) {
@@ -274,6 +367,7 @@ export class SessionManager {
       }
       if (TERMINAL_REFRESH_ERRORS.has(outcome.error)) {
         await this.clearLocal();
+        this.#signalExpired();
         throw new SebaSessionExpiredError(
           `The stored session is no longer valid ("${outcome.error}"). Sign in again.`,
         );
@@ -294,6 +388,7 @@ export class SessionManager {
         signer,
         fetchImpl: this.#options.fetchImpl,
         requireDpopBinding: configuration.scopesSupported?.includes("webid") === true,
+        ...(configuration.allowNonCompliantCnf === true ? { allowNonCompliantCnf: true } : {}),
         expectedWebId: record.webId,
       });
     } catch (error) {
@@ -303,6 +398,7 @@ export class SessionManager {
         // repeat the failure on every restore. Network/JWKS transport errors are not
         // SebaAuthError and keep the record.
         await this.clearLocal();
+        this.#signalExpired();
         throw new SebaSessionExpiredError(
           "The refreshed ID token does not match the stored session, so the session was cleared. Sign in again.",
           { cause: error },
@@ -350,7 +446,11 @@ export class SessionManager {
     let configuration = state?.configuration;
     let signer = state?.signer;
 
-    if (refreshToken !== undefined && record !== null && (configuration === undefined || signer === undefined)) {
+    if (
+      refreshToken !== undefined &&
+      record !== null &&
+      (configuration === undefined || configuration === null || signer === undefined)
+    ) {
       try {
         configuration ??= await this.#options.discover(record.provider);
         signer ??= await loadDPoPKey(record.key);
@@ -360,8 +460,15 @@ export class SessionManager {
     }
 
     await this.clearLocal();
+    this.#emit("logout");
 
     if (refreshToken === undefined || configuration?.revocationEndpoint === undefined || signer === undefined) {
+      if (refreshToken !== undefined && configuration?.revocationEndpoint === undefined) {
+        this.#log(
+          "the provider does not advertise a revocation endpoint; the refresh token remains " +
+            "valid on the server until it expires (or is revoked out-of-band). Local state was cleared.",
+        );
+      }
       return;
     }
     try {
@@ -413,6 +520,28 @@ export class SessionManager {
       return true;
     }
     return state.expiresAt !== null && Date.now() >= state.expiresAt - EXPIRY_SKEW_MS;
+  }
+
+  /** Emit a transition; listener failures never break the session flow. */
+  #emit(reason: SessionChangeReason): void {
+    const listener = this.#options.onSessionChange;
+    if (listener === undefined) {
+      return;
+    }
+    try {
+      listener({ reason, session: this.toPublicSession() });
+    } catch {
+      // Application callbacks must not interrupt session handling.
+    }
+  }
+
+  /** Emit `expired` at most once per session. */
+  #signalExpired(): void {
+    if (this.#expiredNotified) {
+      return;
+    }
+    this.#expiredNotified = true;
+    this.#emit("expired");
   }
 
   #log(message: string, error?: unknown): void {
