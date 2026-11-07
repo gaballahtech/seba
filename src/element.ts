@@ -190,8 +190,9 @@ export class SebaLoginElement extends HTMLElementBase {
     }
     const providers = this.#providers();
     const fixedIssuer = this.#attr("issuer") ?? this.#attr("issuer-url");
-    const institutional = providers.length === 1 && fixedIssuer === null && this.#attr("web-id") === null;
-    void this.login(institutional ? { issuer: providers[0]! } : {});
+    const pinned = providers.length >= 1 && fixedIssuer === null && this.#attr("web-id") === null;
+    const primary = this.#primaryIssuer();
+    void this.login(pinned && primary !== null ? { issuer: primary } : {});
   };
 
   #client(): Seba | null {
@@ -410,7 +411,7 @@ export class SebaLoginElement extends HTMLElementBase {
     // when there is no chip row at all.
     const bar = this.#barVisible();
     if (bar !== null) {
-      bar.hidden = this.#chipsActive();
+      bar.hidden = false;
     }
     button.dataset.state = authenticated ? "authenticated" : "anonymous";
     button.disabled = this.#busy;
@@ -418,14 +419,21 @@ export class SebaLoginElement extends HTMLElementBase {
     button.setAttribute("aria-pressed", authenticated ? "true" : "false");
 
     const label = root?.querySelector(".label");
-    if (label) {
+    if (label && !authenticated) {
       const providers = this.#providers();
       const fixedIssuer = this.#attr("issuer") ?? this.#attr("issuer-url");
-      if (providers.length === 1 && fixedIssuer === null && this.#attr("web-id") === null && !authenticated) {
-        label.textContent = `Sign in with ${providerLabel(providers[0]!)}`;
+      const pinned = providers.length >= 1 && fixedIssuer === null && this.#attr("web-id") === null;
+      const primary = this.#primaryIssuer();
+      if (pinned && primary !== null) {
+        const remembered = primary === lastIssuer() && providers.length > 1;
+        label.textContent = remembered
+          ? `Continue with ${providerLabel(primary)}`
+          : `Sign in with ${providerLabel(primary)}`;
       } else {
-        label.textContent = authenticated ? "Sign out" : (this.#attr("label") ?? "Sign in with Solid");
+        label.textContent = this.#attr("label") ?? "Sign in with Solid";
       }
+    } else if (label) {
+      label.textContent = "Sign out";
     }
 
     this.#updateProviders();
@@ -492,7 +500,7 @@ export class SebaLoginElement extends HTMLElementBase {
     return this.shadowRoot?.querySelector<HTMLElement>(".bar") ?? null;
   }
 
-  /** True while the chip row (not the plain bar) is the sign-in UI. */
+  /** True while the chip row offers alternatives next to the main button. */
   #chipsActive(): boolean {
     const providers = this.#providers();
     const fixedIssuer = this.#attr("issuer") ?? this.#attr("issuer-url");
@@ -503,6 +511,26 @@ export class SebaLoginElement extends HTMLElementBase {
       fixedIssuer === null &&
       this.#attr("web-id") === null
     );
+  }
+
+  /**
+   * The issuer the main button signs in with: the last-used provider when it is
+   * on the list, otherwise the first configured one. `null` without providers.
+   */
+  #primaryIssuer(): string | null {
+    const providers = this.#providers();
+    const fixedIssuer = this.#attr("issuer") ?? this.#attr("issuer-url");
+    if (fixedIssuer !== null) {
+      return fixedIssuer;
+    }
+    if (providers.length === 0) {
+      return null;
+    }
+    const last = lastIssuer();
+    if (last !== null && providers.includes(last)) {
+      return last;
+    }
+    return providers[0]!;
   }
 
   #updateChoices(): void {
@@ -521,12 +549,14 @@ export class SebaLoginElement extends HTMLElementBase {
     }
     choices.hidden = false;
     const providers = this.#providers();
-    const last = lastIssuer();
-    const ordered = [...providers].sort((a, b) => {
-      if (a === last) return -1;
-      if (b === last) return 1;
+    // The main button covers the primary issuer; list only the alternatives.
+    const primary = this.#primaryIssuer();
+    const sorted = [...providers].sort((a, b) => {
+      if (a === lastIssuer()) return -1;
+      if (b === lastIssuer()) return 1;
       return 0;
     });
+    const ordered = sorted.filter((issuer) => issuer !== primary);
     const fragment = document.createDocumentFragment();
     for (const issuer of ordered) {
       const chip = document.createElement("button");
@@ -536,7 +566,7 @@ export class SebaLoginElement extends HTMLElementBase {
       chip.dataset.issuer = issuer;
       chip.textContent = providerLabel(issuer);
       chip.title = issuer;
-      if (issuer === last) {
+      if (issuer === lastIssuer()) {
         chip.dataset.last = "true";
         const badge = document.createElement("small");
         badge.textContent = " · last used";
@@ -551,7 +581,7 @@ export class SebaLoginElement extends HTMLElementBase {
     other.textContent = "Other…";
     fragment.appendChild(other);
     choices.replaceChildren(fragment);
-    this.#showHintFor(last);
+    this.#showHintFor(primary);
   }
 
   #showHintFor(issuer: string | null): void {
