@@ -84,7 +84,7 @@ button[data-state="authenticated"] { background: var(--seba-accent); color: var(
   width: 100%;
 }
 .chip { width: 100%; justify-content: center; }
-.choices[hidden], .other[hidden], .get-a-pod[hidden], .hint[hidden] { display: none; }
+[hidden] { display: none !important; }
 .chip { padding: 0.5em 0.8em; font-size: 0.95em; }
 .chip[data-last="true"] { border-color: var(--seba-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--seba-accent) 25%, transparent); }
 .other { display: inline-flex; gap: 0.35em; margin-top: 0.35em; align-items: center; }
