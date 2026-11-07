@@ -1,4 +1,4 @@
-# PUBLISH_REPORT — @gaballahtech/seba 0.2.1
+# PUBLISH_REPORT — @gaballahtech/seba
 
 Date: 2026-11-05
 Environment: Linux container, Node.js v26.12.1, npm 12.2.1, registry `https://registry.npmjs.org/`.
@@ -6,6 +6,38 @@ GitHub identity available on the machine: `gaballahtech` (token used via API, ne
 npm authentication: **absent at the time of §1** (`~/.npmrc` contained only `prefix` and
 `allow-scripts`; no `_authToken`, and `npm whoami` failed with `need auth`). Authentication
 was configured later as `gaballahtech`; see the published section below.
+
+## v0.5.0 — Sign-in component, session events, Pod helpers, React, CLI
+
+**Status: published.** `dist-tags.latest` → `0.5.0`.
+
+Additive release built on the 0.4.0 fixes: `<seba-login>` (session restore, provider
+picker, optional `redirect-uri`, `config`), session change events, `Seba.pod`, the
+`@gaballahtech/seba/react` bindings, PNG-only brand assets and the `seba client-id`
+generator. No runtime dependency was added.
+
+Not yet tested against a provider in its component/React form (see CHANGELOG).
+
+### Gates
+
+```
+npm run typecheck → 0
+npm run build     → 0
+npm test          → Test Files 15 passed (15) / Tests 161 passed (161), 0
+npm pack --dry-run→ @gaballahtech/seba@0.5.0, 120 files, 168.3 kB / 565.6 kB
+```
+
+### Publish and verified artefact
+
+```
+PUBLISH_EXIT=0
+npm notice Publishing to https://registry.npmjs.org/ with tag latest and public access
++ @gaballahtech/seba@0.5.0
+shasum: a7f637ff0ce2979a87ad87b80d53d1d1b8de1d26
+```
+
+Git: `main` fast-forwarded to `bc43bdc` and pushed, annotated tag `v0.5.0` pushed, and
+the temporary `release/0.5.0` branch removed locally and on the remote.
 
 ## v0.2.1 — Patch: scoped name in shipped docs
 
