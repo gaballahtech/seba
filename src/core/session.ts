@@ -283,9 +283,13 @@ export class SessionManager {
    * @throws {@link SebaAuthError} when no session exists.
    */
   async refreshIfNeeded(force = false): Promise<void> {
+    if (this.#state === null && this.#expiredNotified) {
+      throw new SebaSessionExpiredError("The session has expired. Sign in again.");
+    }
     const state = this.require();
     if (state.tokens.refreshToken === undefined) {
       if (force) {
+        await this.clearLocal();
         this.#signalExpired();
         throw new SebaSessionExpiredError(
           "The access token was rejected and no refresh token is available. Sign in again.",
@@ -318,10 +322,12 @@ export class SessionManager {
     const record = await this.#options.storage.load();
     const refreshToken = state.tokens.refreshToken ?? record?.refreshToken;
     if (refreshToken === undefined) {
+      await this.clearLocal();
       this.#signalExpired();
       throw new SebaSessionExpiredError("No refresh token is available. Sign in again.");
     }
     if (state.configuration === null) {
+      await this.clearLocal();
       this.#signalExpired();
       throw new SebaSessionExpiredError("No provider metadata is available for this session. Sign in again.");
     }
@@ -535,12 +541,18 @@ export class SessionManager {
     }
   }
 
-  /** Emit `expired` at most once per session. */
+  /**
+   * Emit `expired` at most once per session.
+   *
+   * The in-memory session is dropped first so the event always carries
+   * `session: null`, matching {@link SessionChangeEvent}.
+   */
   #signalExpired(): void {
     if (this.#expiredNotified) {
       return;
     }
     this.#expiredNotified = true;
+    this.#state = null;
     this.#emit("expired");
   }
 

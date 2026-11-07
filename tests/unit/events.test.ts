@@ -79,6 +79,8 @@ describe("session change events", () => {
     await expect(sessions.refreshIfNeeded(true)).rejects.toBeInstanceOf(SebaSessionExpiredError);
 
     expect(events.map((event) => event.reason)).toEqual(["login", "expired"]);
+    // The contract is `session: null` on expiry, including the refresh-failure path.
+    expect(events[1]).toEqual({ reason: "expired", session: null });
 
     await adopt(sessions, tokens());
     await expect(sessions.refreshIfNeeded(true)).rejects.toBeInstanceOf(SebaSessionExpiredError);
