@@ -759,6 +759,7 @@ export class SebaLoginElement extends HTMLElementBase {
 
   #update(): void {
     const root = this.shadowRoot;
+    console.log("[seba-el] update dialog=", this.#dialogOpen, "menu=", this.#menuOpen);
     if (!root) {
       return;
     }
@@ -854,6 +855,7 @@ export class SebaLoginElement extends HTMLElementBase {
   #renderMenu(): void {
     const root = this.shadowRoot;
     const menu = root?.querySelector<HTMLUListElement>(".menu");
+    console.log("[seba-el] renderMenu hidden=", menu?.hidden, "open=", this.#menuOpen, "dialog=", this.#dialogOpen);
     if (!menu || menu.hidden) {
       return;
     }
