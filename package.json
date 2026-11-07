@@ -1,6 +1,6 @@
 {
   "name": "@gaballahtech/seba",
-  "version": "0.5.2",
+  "version": "0.5.1",
   "description": "Developer-friendly Solid-OIDC authentication: login, session restoration and DPoP-signed fetch in four methods.",
   "license": "MIT",
   "author": "gaballahtech",

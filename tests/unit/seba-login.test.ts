@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { Seba, SebaLoginElement, defineSebaLogin, sebaLogo, sebaLogoImage } from "../../src/index.js";
-import { parseInlineConfig, parseProviders, providerLabel, lastIssuer } from "../../src/element.js";
+import { parseInlineConfig, parseProviders } from "../../src/element.js";
 
 describe("brand assets", () => {
   it("inlines SVG artwork for every variant and still ships the PNG original", () => {
@@ -23,24 +23,6 @@ describe("brand assets", () => {
 });
 
 describe("<seba-login>", () => {
-  it("maps well-known issuers to people-readable names", () => {
-    expect(providerLabel("https://solidcommunity.net/")).toBe("Solid Community");
-    expect(providerLabel("https://login.inrupt.com/")).toBe("Inrupt Pod Spaces");
-    expect(providerLabel("https://login.inrupt.com")).toBe("Inrupt Pod Spaces");
-    expect(providerLabel("https://unknown-provider.example")).toBe("unknown-provider.example");
-  });
-
-  it("parses the providers attribute defensively", () => {
-    expect(
-      parseProviders("https://solidcommunity.net, https://login.inrupt.com not-a-url https://trinpod.eu/"),
-    ).toEqual(["https://solidcommunity.net/", "https://login.inrupt.com/", "https://trinpod.eu/"]);
-    expect(parseProviders("")).toEqual([]);
-  });
-
-  it("last-issuer helpers degrade gracefully without a browser", () => {
-    expect(lastIssuer()).toBeNull();
-  });
-
   it("does not register itself outside a browser", () => {
     expect(defineSebaLogin()).toBe(false);
   });

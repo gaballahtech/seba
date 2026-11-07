@@ -1,24 +1,5 @@
 # Changelog
 
-## [0.5.2] — 2026-11-07
-
-Progressive sign-in UX inside the wizard button itself (spec-compliant; no new flows).
-
-### Added
-
-- **Provider chips.** With `providers="https://solidcommunity.net/, https://login.inrupt.com, …"`
-  a placed list of ~2-6 issuers isUnited as chips with people-readable names (curated table,
-  host fallback for unknown issuers) instead of asking the user to type a WebID or issuer URL.
-  A single issuer is folded straight into the main button label; > 6 keeps the legacy select.
-- **WebID fallback.** An "Other…" chip reveals a WebID/issuer input (Solid-OIDC §6.1 discovery).
-- **Last-used memory.** After a login the issuing provider is remembered (localStorage
-  `seba:last-issuer`) and pre-highlighted on the next visit — one click for returning users.
-- **Anti-phishing hint.** Hovering/focusing a chip shows the full issuer URL it will open
-  (NIST SP 800-63C customer-experience guidance).
-- **`get-a-pod="…"` attribute.** Renders a "New to Solid? Get a Pod" link next to the
-  sign-in control when signed out (no dead ends).
-- New exports: `providerLabel()`, `lastIssuer()` and `parseProviders()` from the root entry.
-
 ## [0.5.1] — 2026-11-07
 
 Size and API cleanup.
