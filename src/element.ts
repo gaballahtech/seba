@@ -791,8 +791,8 @@ export class SebaLoginElement extends HTMLElementBase {
     if (overlay) {
       overlay.hidden = !this.#dialogOpen;
       if (this.#dialogOpen) {
-        this.#renderMenu();
         this.#renderTrigger();
+        this.#renderMenu();
         this.#renderSignup();
         const notice = root.querySelector<HTMLElement>(".notice");
         if (notice) {
