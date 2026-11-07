@@ -77,11 +77,13 @@ button:disabled { opacity: 0.6; cursor: progress; }
 button[data-state="authenticated"] { background: var(--seba-accent); color: var(--seba-accent-contrast); border-color: transparent; }
 .logo { display: block; width: 1.35em; height: 1.35em; object-fit: contain; }
 .choices {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.35em;
-  margin-top: 0.45em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  margin-top: 0.5em;
+  width: 100%;
 }
+.chip { width: 100%; justify-content: center; }
 .choices[hidden], .other[hidden], .get-a-pod[hidden], .hint[hidden] { display: none; }
 .chip { padding: 0.5em 0.8em; font-size: 0.95em; }
 .chip[data-last="true"] { border-color: var(--seba-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--seba-accent) 25%, transparent); }
@@ -403,6 +405,13 @@ export class SebaLoginElement extends HTMLElementBase {
       return;
     }
     const authenticated = this.#session !== null;
+    // While provider chips are shown they are the sign-in UI; the plain bar
+    // (and its generic button) only returns once signed in ("Sign out") or
+    // when there is no chip row at all.
+    const bar = this.#barVisible();
+    if (bar !== null) {
+      bar.hidden = this.#chipsActive();
+    }
     button.dataset.state = authenticated ? "authenticated" : "anonymous";
     button.disabled = this.#busy;
     button.setAttribute("aria-busy", this.#busy ? "true" : "false");
@@ -410,7 +419,13 @@ export class SebaLoginElement extends HTMLElementBase {
 
     const label = root?.querySelector(".label");
     if (label) {
-      label.textContent = authenticated ? "Sign out" : (this.#attr("label") ?? "Sign in with Solid");
+      const providers = this.#providers();
+      const fixedIssuer = this.#attr("issuer") ?? this.#attr("issuer-url");
+      if (providers.length === 1 && fixedIssuer === null && this.#attr("web-id") === null && !authenticated) {
+        label.textContent = `Sign in with ${providerLabel(providers[0]!)}`;
+      } else {
+        label.textContent = authenticated ? "Sign out" : (this.#attr("label") ?? "Sign in with Solid");
+      }
     }
 
     this.#updateProviders();
@@ -443,7 +458,10 @@ export class SebaLoginElement extends HTMLElementBase {
     }
   }
 
-  /** Show a provider picker only when there is a real choice and nobody is signed in. */
+  /**
+   * Legacy fallback for more providers than the chips can hold (> 6). The chips
+   * render 2..6 providers, so the select only appears past that.
+   */
   #updateProviders(): void {
     const select = this.shadowRoot?.querySelector<HTMLSelectElement>(".issuer");
     if (!select) {
@@ -451,7 +469,7 @@ export class SebaLoginElement extends HTMLElementBase {
     }
     const providers = this.#providers();
     const fixedIssuer = this.#attr("issuer") ?? this.#attr("issuer-url");
-    if (providers.length < 2 || this.#session !== null || fixedIssuer !== null) {
+    if (providers.length <= 6 || this.#session !== null || fixedIssuer !== null) {
       select.hidden = true;
       return;
     }
@@ -469,23 +487,40 @@ export class SebaLoginElement extends HTMLElementBase {
     }
   }
 
+  /** The plain bar (legacy select + main button). */
+  #barVisible(): HTMLElement | null {
+    return this.shadowRoot?.querySelector<HTMLElement>(".bar") ?? null;
+  }
+
+  /** True while the chip row (not the plain bar) is the sign-in UI. */
+  #chipsActive(): boolean {
+    const providers = this.#providers();
+    const fixedIssuer = this.#attr("issuer") ?? this.#attr("issuer-url");
+    return (
+      providers.length >= 2 &&
+      providers.length <= 6 &&
+      this.#session === null &&
+      fixedIssuer === null &&
+      this.#attr("web-id") === null
+    );
+  }
+
   #updateChoices(): void {
     const root = this.shadowRoot;
     const choices = root?.querySelector<HTMLElement>(".choices");
     if (!choices) {
       return;
     }
-    const providers = this.#providers();
-    const fixedIssuer = this.#attr("issuer") ?? this.#attr("issuer-url");
     // 0 or 1: the main button already covers it (plain prompt / direct issuer).
     // >= 2: render friendly chips. The legacy select stays available for > 6.
-    if (providers.length < 2 || providers.length > 6 || this.#session !== null || fixedIssuer !== null || this.#attr("web-id") !== null) {
+    if (!this.#chipsActive()) {
       choices.hidden = true;
       choices.replaceChildren();
       this.#hideHint();
       return;
     }
     choices.hidden = false;
+    const providers = this.#providers();
     const last = lastIssuer();
     const ordered = [...providers].sort((a, b) => {
       if (a === last) return -1;
