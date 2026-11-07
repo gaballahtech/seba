@@ -11,16 +11,23 @@ bindings. No behaviour change to login, refresh, storage or validation.
   completes the callback on the redirect route, exposes `login()`/`logout()`/`session`, and
   switches between "Sign in" and "Sign out". Attributes: `client-id`, `redirect-uri`,
   `issuer`, `web-id`, `config` (JSON `SebaConfig` overrides), `label`, `theme`
-  (`auto`/`light`/`dark`), `logo`, `account`. Register it
-  with `defineSebaLogin()`; importing the package stays side-effect free.
+  (`auto`/`light`/`dark`), `logo`, `account`. `redirect-uri` is optional (defaults to the
+  current page URL), `issuer-url` is accepted as a SolidOS-style alias, and `providers`
+  renders an issuer picker. The element also emits `login-success` alongside `seba:login`.
+  Register it with `defineSebaLogin()`; importing the package stays side-effect free.
 - **Session events** — `onSessionChange`, `offSessionChange`, `onSessionExpired` and
   `getSession()` on the facade, plus `SessionChangeEvent`/`SessionChangeReason` types.
   Reasons: `login`, `restore`, `logout`, `expired`; `expired` fires at most once per session.
   Listener exceptions are swallowed so application callbacks cannot break session handling.
 - **`Seba.pod`** — `parseSubjectTriples`, `objectify` and `toTurtle`, also exported from the
   package root zero-dependency helpers for the Turtle subset used by Solid pods.
+- **`seba client-id` CLI** — a zero-dependency generator for the Solid-OIDC Client ID
+  Document. It validates HTTPS/loopback URLs, emits `scope`, `grant_types` and
+  `response_types`, supports repeated `--redirect-uri`, and can write the file with `--out`
+  (or print it to stdout for build scripts).
 - **React bindings** — `@gaballahtech/seba/react` exports `SebaLoginButton` and `useSession`.
-  `react` is an optional peer dependency; the core entry point never imports it.
+  `react` is an optional peer dependency; the core entry point never imports it. The button
+  accepts `config` and `providers` props, and `redirectUri` is optional.
 - **PNG brand assets** — five 512×512 PNGs in `assets/` (primary, inverse, monochrome, solid,
   favicon) served through the `./assets/*` export, plus 48×48 PNG data URIs embedded for the
   component. No SVG is used or shipped. The source PNGs were re-encoded losslessly (pixel

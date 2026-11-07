@@ -33,6 +33,23 @@ npm install @gaballahtech/seba
 Host a JSON-LD document and use its URL as `clientId`. The `client_id` member must equal the
 document URL, and every callback you use must be listed verbatim.
 
+The package ships a zero-dependency generator, so the document does not have to be written by
+hand:
+
+```bash
+npx @gaballahtech/seba client-id \
+  --client-id https://app.example/client-id.jsonld \
+  --redirect-uri https://app.example/auth/callback \
+  --client-name "My Solid App" \
+  --out public/client-id.jsonld
+```
+
+It validates the URLs (HTTPS, or loopback HTTP for local development), writes spec-shaped
+metadata (`scope`, `grant_types`, `response_types`), and reminds you to serve the file as
+`application/ld+json` at the `client_id` URL. Repeat `--redirect-uri` for additional
+callbacks; run `npx @gaballahtech/seba client-id --help` for all options. Printing to stdout
+(without `--out`) keeps it usable in CI or a build script.
+
 ```json
 {
   "@context": ["https://www.w3.org/ns/solid/oidc-context.jsonld"],
@@ -115,9 +132,13 @@ effects; register the element once with `defineSebaLogin()`.
 
 The element starts the login on click, completes the callback when it is loaded on the
 redirect route, restores the stored session on a normal page load, and switches to "Sign
-out" once a session exists. Attributes: `client-id` and `redirect-uri` (required), plus
-`issuer`, `web-id`, `config` (JSON `SebaConfig` overrides such as per-provider
-`tolerances`), `label`, `theme` (`auto` | `light` | `dark`), `logo`, and `account`.
+out" once a session exists. Attributes: `client-id` is the only required one; `redirect-uri`
+defaults to the current page URL (fragment removed). Also available: `issuer` (or the
+SolidOS-style alias `issuer-url`), `providers` (space/comma separated issuer URLs rendered as
+a picker when there are two or more), `web-id`, `config` (JSON `SebaConfig` overrides such as
+per-provider `tolerances`), `label`, `theme` (`auto` | `light` | `dark`), `logo`, and
+`account`. The element also emits `login-success` as an alias of `seba:login` for apps
+written against `solid-ui`.
 
 React (`react` is an optional peer dependency):
 
@@ -144,6 +165,8 @@ export function App({ seba }: { seba: Seba }) {
 
 The component registers `<seba-login>` on mount. `useSession` follows the session of an
 existing `Seba` instance (the one you use for `fetch`), while the button owns its own.
+`SebaLoginButton` also accepts `providers` (issuer URLs), `config` (JSON-serialized
+`SebaConfig` overrides) and an optional `redirectUri`.
 
 See also [`examples/react/App.tsx`](examples/react/App.tsx).
 
@@ -271,6 +294,7 @@ never interrupt the session flow.
 | Element | `seba:restore` | `{ session }` | Same as the `restore` reason. |
 | Element | `seba:logout` | `{ session: null }` | Same as the `logout` reason. |
 | Element | `seba:session-expired` | `{ session: null }` | Same as the `expired` reason. |
+| Element | `login-success` | `{ session }` | Compatibility alias of `seba:login` (SolidOS naming). |
 | Element | `seba:error` | `{ error }` | A login, logout or configuration error in the component. |
 
 ```ts
