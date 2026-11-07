@@ -25,6 +25,7 @@ const OBSERVED_ATTRIBUTES = [
   "theme",
   "logo",
   "account",
+  "get-a-pod",
 ] as const;
 
 const STYLES = `
@@ -75,6 +76,28 @@ button:focus-visible { outline: 2px solid var(--seba-accent); outline-offset: 2p
 button:disabled { opacity: 0.6; cursor: progress; }
 button[data-state="authenticated"] { background: var(--seba-accent); color: var(--seba-accent-contrast); border-color: transparent; }
 .logo { display: block; width: 1.35em; height: 1.35em; object-fit: contain; }
+.choices {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35em;
+  margin-top: 0.45em;
+}
+.choices[hidden], .other[hidden], .get-a-pod[hidden], .hint[hidden] { display: none; }
+.chip { padding: 0.5em 0.8em; font-size: 0.95em; }
+.chip[data-last="true"] { border-color: var(--seba-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--seba-accent) 25%, transparent); }
+.other { display: inline-flex; gap: 0.35em; margin-top: 0.35em; align-items: center; }
+.other input {
+  flex: 1 1 16em;
+  padding: 0.5em 0.6em;
+  border: 1px solid var(--seba-border);
+  border-radius: 0.65em;
+  background: var(--seba-surface);
+  color: var(--seba-text);
+  font: inherit;
+}
+.other input:focus-visible { outline: 2px solid var(--seba-accent); outline-offset: 2px; }
+.hint { display: block; font-size: 0.78em; opacity: 0.75; margin-top: 0.3em; min-height: 1em; }
+.get-a-pod { display: block; margin-top: 0.45em; font-size: 0.85em; color: var(--seba-accent); }
 `;
 export class SebaLoginElement extends HTMLElementBase {
   static get observedAttributes(): string[] {
@@ -159,7 +182,14 @@ export class SebaLoginElement extends HTMLElementBase {
   }
 
   #onClick = (): void => {
-    void (this.#session === null ? this.login() : this.logout());
+    if (this.#session !== null) {
+      void this.logout();
+      return;
+    }
+    const providers = this.#providers();
+    const fixedIssuer = this.#attr("issuer") ?? this.#attr("issuer-url");
+    const institutional = providers.length === 1 && fixedIssuer === null && this.#attr("web-id") === null;
+    void this.login(institutional ? { issuer: providers[0]! } : {});
   };
 
   #client(): Seba | null {
@@ -223,6 +253,7 @@ export class SebaLoginElement extends HTMLElementBase {
       if (event.reason === "login") {
         // Compatibility alias used by SolidOS' <solid-ui-login-button>.
         this.#emit("login-success", event.session);
+        rememberLastIssuer(event.session?.provider ?? null);
       }
     } else {
       this.#emit("seba:logout", null);
@@ -254,6 +285,69 @@ export class SebaLoginElement extends HTMLElementBase {
         this.#fail(error);
       }
     }
+  }
+
+  #wire(): void {
+    const root = this.shadowRoot;
+    if (!root) {
+      return;
+    }
+    root.querySelector("button")?.addEventListener("click", this.#onClick);
+    const hint = root.querySelector<HTMLElement>(".hint");
+    const choices = root.querySelector<HTMLElement>(".choices");
+    choices?.addEventListener("click", (event) => {
+      const target = event.target as HTMLElement;
+      if (target.classList.contains("other-toggle")) {
+        const other = root.querySelector<HTMLElement>(".other");
+        if (other) {
+          other.hidden = !other.hidden;
+          if (!other.hidden) {
+            other.querySelector("input")?.focus();
+          }
+        }
+        return;
+      }
+      if (target.classList.contains("chip")) {
+        const issuer = (target as HTMLElement).dataset.issuer;
+        if (issuer) {
+          void this.login({ issuer });
+        }
+      }
+    });
+    choices?.addEventListener("mouseover", (event) => {
+      const card = event.target as HTMLElement;
+      if (card.dataset?.issuer === undefined) return;
+      if (hint) {
+        hint.hidden = false;
+        hint.textContent = card.dataset.issuer ?? "";
+      }
+    });
+    choices?.addEventListener("focusin", (event) => {
+      const card = event.target as HTMLElement;
+      if (card.dataset?.issuer === undefined) return;
+      if (hint) {
+        hint.hidden = false;
+        hint.textContent = card.dataset.issuer ?? "";
+      }
+    });
+    root.querySelector("button.go")?.addEventListener("click", () => {
+      void this.#webIdLogin();
+    });
+    root.querySelector("input.webid")?.addEventListener("keydown", (event) => {
+      if ((event as KeyboardEvent).key === "Enter") {
+        event.preventDefault();
+        void this.#webIdLogin();
+      }
+    });
+  }
+
+  async #webIdLogin(): Promise<void> {
+    const input = this.shadowRoot?.querySelector<HTMLInputElement>("input.webid");
+    const value = input?.value.trim() ?? "";
+    if (value === "") {
+      return;
+    }
+    await this.login({ webId: value });
   }
 
   #identity(): LoginOptions {
@@ -289,7 +383,16 @@ export class SebaLoginElement extends HTMLElementBase {
       `<img class="logo" part="logo" alt="" width="48" height="48" decoding="async">` +
       `<span class="label" part="label"></span>` +
       `</button>` +
-      `</div>`;
+      `</div>` +
+      `<div class="choices" part="choices" hidden></div>` +
+      `<div class="other" part="other" hidden>` +
+      `<input class="webid" type="url" aria-label="WebID or identity provider URL" placeholder="https://you.example/profile/card#me">` +
+      `<button class="go" part="chip" type="button">Continue</button>` +
+      `</div>` +
+      `<div class="hint" part="hint" hidden></div>` +
+      `<a class="get-a-pod" part="get-a-pod" target="_blank" rel="noreferrer noopener" hidden>` +
+      `New to Solid? Get a Pod</a>`;
+    this.#wire();
     this.#update();
   }
 
@@ -311,6 +414,20 @@ export class SebaLoginElement extends HTMLElementBase {
     }
 
     this.#updateProviders();
+    this.#updateChoices();
+
+    const link = root?.querySelector<HTMLAnchorElement>("a.get-a-pod");
+    if (link) {
+      const url = this.#attr("get-a-pod");
+      if (url === null || authenticated) {
+        link.setAttribute("hidden", "");
+      } else {
+        link.removeAttribute("hidden");
+        if (link.getAttribute("href") !== url) {
+          link.href = url;
+        }
+      }
+    }
 
     const logo = root?.querySelector<HTMLImageElement>(".logo");
     if (logo) {
@@ -350,6 +467,74 @@ export class SebaLoginElement extends HTMLElementBase {
     if (providers.includes(previous)) {
       select.value = previous;
     }
+  }
+
+  #updateChoices(): void {
+    const root = this.shadowRoot;
+    const choices = root?.querySelector<HTMLElement>(".choices");
+    if (!choices) {
+      return;
+    }
+    const providers = this.#providers();
+    const fixedIssuer = this.#attr("issuer") ?? this.#attr("issuer-url");
+    // 0 or 1: the main button already covers it (plain prompt / direct issuer).
+    // >= 2: render friendly chips. The legacy select stays available for > 6.
+    if (providers.length < 2 || providers.length > 6 || this.#session !== null || fixedIssuer !== null || this.#attr("web-id") !== null) {
+      choices.hidden = true;
+      choices.replaceChildren();
+      this.#hideHint();
+      return;
+    }
+    choices.hidden = false;
+    const last = lastIssuer();
+    const ordered = [...providers].sort((a, b) => {
+      if (a === last) return -1;
+      if (b === last) return 1;
+      return 0;
+    });
+    const fragment = document.createDocumentFragment();
+    for (const issuer of ordered) {
+      const chip = document.createElement("button");
+      chip.className = "chip";
+      chip.type = "button";
+      chip.part = "chip";
+      chip.dataset.issuer = issuer;
+      chip.textContent = providerLabel(issuer);
+      chip.title = issuer;
+      if (issuer === last) {
+        chip.dataset.last = "true";
+        const badge = document.createElement("small");
+        badge.textContent = " · last used";
+        chip.appendChild(badge);
+      }
+      fragment.appendChild(chip);
+    }
+    const other = document.createElement("button");
+    other.className = "chip other-toggle";
+    other.type = "button";
+    other.part = "chip";
+    other.textContent = "Other…";
+    fragment.appendChild(other);
+    choices.replaceChildren(fragment);
+    this.#showHintFor(last);
+  }
+
+  #showHintFor(issuer: string | null): void {
+    const hint = this.shadowRoot?.querySelector<HTMLElement>(".hint");
+    if (!hint) {
+      return;
+    }
+    if (issuer === null || issuer === undefined) {
+      hint.hidden = true;
+      hint.textContent = "";
+      return;
+    }
+    hint.hidden = false;
+    hint.textContent = `Signs you in at ${issuer}`;
+  }
+
+  #hideHint(): void {
+    this.#showHintFor(null);
   }
 
   #defaultVariant(): "primary" | "inverse" {
@@ -411,6 +596,69 @@ export function parseProviders(value: string): string[] {
     }
   }
   return [...seen];
+}
+
+/** Well-known issuers -> people-readable names (the chip text). Unknown issuers fall back to their host. */
+const PROVIDER_LABELS: Readonly<Record<string, string>> = {
+  "https://solidcommunity.net": "Solid Community",
+  "https://solidcommunity.au": "Solid Community AU",
+  "https://login.inrupt.com": "Inrupt Pod Spaces",
+  "https://pod.inrupt.com": "Inrupt Pod Spaces",
+  "https://inrupt.net": "Inrupt (legacy)",
+  "https://trinpod.eu": "TrinPod",
+  "https://trinpod.us": "TrinPod USA",
+  "https://solidweb.org": "Solid Web",
+  "https://solidweb.me": "Me is Data",
+  "https://teamid.live": "TeamID",
+  "https://use.id": "Use.id",
+  "https://datapod.igrant.io": "Data Pod",
+  "https://solid.redpencil.io": "Redpencil",
+};
+
+/** Friendly chip label for a provider issuer: curated name when known, host otherwise. */
+export function providerLabel(issuer: string): string {
+  let host: string;
+  try {
+    host = new URL(issuer).host.replace(/^www\./, "");
+  } catch {
+    host = issuer;
+  }
+  const curated = PROVIDER_LABELS[issuer.replace(/\/+$/, "")];
+  return curated ?? host;
+}
+
+const LAST_ISSUER_KEY = "seba:last-issuer";
+
+/** Persist the issuer that most recently completed a login (browser-only). */
+function rememberLastIssuer(issuer: string | null): void {
+  if (typeof localStorage === "undefined") {
+    return;
+  }
+  try {
+    if (issuer === null || issuer === "") {
+      localStorage.removeItem(LAST_ISSUER_KEY);
+    } else {
+      localStorage.setItem(LAST_ISSUER_KEY, issuer);
+    }
+  } catch {
+    // Storage can be unavailable (private mode): the last-used hint is optional.
+  }
+}
+
+/** The issuer remembered by {@link rememberLastIssuer}, or `null` (browser-only). */
+export function lastIssuer(): string | null {
+  if (typeof localStorage === "undefined") {
+    return null;
+  }
+  try {
+    const value = localStorage.getItem(LAST_ISSUER_KEY);
+    if (value === null || value === "") {
+      return null;
+    }
+    return new URL(value).href;
+  } catch {
+    return null;
+  }
 }
 
 /** Inline `config` attribute value -> SebaConfig overlay (or a reason string). */
