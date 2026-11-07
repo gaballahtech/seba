@@ -6,7 +6,7 @@
  */
 
 import { isSebaLogoVariant, sebaLogoImage } from "./assets/icons.js";
-import { SebaConfigError } from "./core/errors.js";
+import { SebaConfigError, SebaSessionExpiredError } from "./core/errors.js";
 import { Seba } from "./seba.js";
 import type { LoginOptions, Session, SessionChangeEvent } from "./types.js";
 
@@ -77,7 +77,7 @@ export class SebaLoginElement extends HTMLElementBase {
   connectedCallback(): void {
     this.#render();
     this.shadowRoot?.querySelector("button")?.addEventListener("click", this.#onClick);
-    void this.#completeCallback();
+    void this.#restoreOrComplete();
   }
 
   disconnectedCallback(): void {
@@ -85,7 +85,12 @@ export class SebaLoginElement extends HTMLElementBase {
   }
 
   attributeChangedCallback(name: string, _oldValue: string | null, _newValue: string | null): void {
-    if (name === "client-id" || name === "redirect-uri" || name === "account") {
+    if (
+      name === "client-id" ||
+      name === "redirect-uri" ||
+      name === "account" ||
+      name === "config"
+    ) {
       this.#resetClient();
     }
     this.#update();
@@ -174,6 +179,8 @@ export class SebaLoginElement extends HTMLElementBase {
     this.#unsubscribe?.();
     this.#unsubscribe = null;
     this.#seba = null;
+    this.#session = null;
+    this.#update();
   }
 
   #onSessionChange(event: SessionChangeEvent): void {
@@ -188,8 +195,9 @@ export class SebaLoginElement extends HTMLElementBase {
     }
   }
 
-  async #completeCallback(): Promise<void> {
-    if (!Seba.isCallbackResponse()) {
+  /** Complete a callback URL, or resume the stored session on a normal page load. */
+  async #restoreOrComplete(): Promise<void> {
+    if (this.#attr("client-id") === null || this.#attr("redirect-uri") === null) {
       return;
     }
     const seba = this.#client();
@@ -197,9 +205,16 @@ export class SebaLoginElement extends HTMLElementBase {
       return;
     }
     try {
-      await seba.completeLogin();
+      if (Seba.isCallbackResponse()) {
+        await seba.completeLogin();
+        return;
+      }
+      await seba.restoreSession();
     } catch (error) {
-      this.#fail(error);
+      // An expired stored session is expected: `seba:session-expired` already fired.
+      if (!(error instanceof SebaSessionExpiredError)) {
+        this.#fail(error);
+      }
     }
   }
 

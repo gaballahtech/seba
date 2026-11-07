@@ -10,7 +10,7 @@ import type { ReactElement } from "react";
 
 import { defineSebaLogin } from "../element.js";
 import type { SebaLoginElement } from "../element.js";
-import type { Session } from "../types.js";
+import type { SebaConfig, Session } from "../types.js";
 import type { Seba } from "../seba.js";
 
 /** Props accepted by {@link SebaLoginButton}. */
@@ -31,6 +31,8 @@ export interface SebaLoginButtonProps {
   logo?: "primary" | "inverse" | "monochrome" | "solid" | "favicon" | "none";
   /** Multi-account storage namespace. */
   account?: string;
+  /** Advanced configuration (e.g. per-provider `tolerances`), serialized into the element. */
+  config?: Partial<Omit<SebaConfig, "clientId" | "redirectUri">>;
   /** Extra class name for the host element. */
   className?: string;
   /** Called after a successful login or restore. */
@@ -66,11 +68,13 @@ export function SebaLoginButton(props: SebaLoginButtonProps): ReactElement {
       props.onError?.((event as CustomEvent<{ error: unknown }>).detail.error);
     };
     element.addEventListener("seba:login", onLogin);
+    element.addEventListener("seba:restore", onLogin);
     element.addEventListener("seba:logout", onLogout);
     element.addEventListener("seba:session-expired", onExpired);
     element.addEventListener("seba:error", onError);
     return () => {
       element.removeEventListener("seba:login", onLogin);
+      element.removeEventListener("seba:restore", onLogin);
       element.removeEventListener("seba:logout", onLogout);
       element.removeEventListener("seba:session-expired", onExpired);
       element.removeEventListener("seba:error", onError);
@@ -87,6 +91,7 @@ export function SebaLoginButton(props: SebaLoginButtonProps): ReactElement {
     ...(props.theme === undefined ? {} : { theme: props.theme }),
     ...(props.logo === undefined ? {} : { logo: props.logo }),
     ...(props.account === undefined ? {} : { account: props.account }),
+    ...(props.config === undefined ? {} : { config: JSON.stringify(props.config) }),
     ...(props.className === undefined ? {} : { class: props.className }),
   });
 }

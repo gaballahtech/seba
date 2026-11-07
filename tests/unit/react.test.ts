@@ -18,9 +18,11 @@ describe("React bindings", () => {
         issuer: "https://idp.example",
         label: "Sign in",
         theme: "dark",
+        config: { tolerances: { "https://idp.example": { allowNonCompliantCnf: true } } },
       }),
     );
     expect(html).toContain("<seba-login");
+    expect(html).toContain("allowNonCompliantCnf");
     expect(html).toContain('client-id="https://app.example/client-id.jsonld"');
     expect(html).toContain('redirect-uri="https://app.example/callback"');
     expect(html).toContain('issuer="https://idp.example"');
