@@ -1,0 +1,52 @@
+name: Feature request
+description: Propose a capability or a change to the public API.
+title: "[feat]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        SEBA deliberately stays small: no new runtime dependencies in the core, and new
+        exports are API commitments. Please explain the problem before the solution.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that the current API makes awkward or impossible?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API
+      description: Naming, signature, and a short usage example. Sketching the types helps.
+      render: ts
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What can you do today instead — and why is it not enough?
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Login / discovery / OIDC
+        - Session, refresh, storage
+        - DPoP / fetch
+        - "<seba-login> element"
+        - React bindings
+        - CLI
+        - Pod helpers
+        - Documentation
+    validations:
+      required: true
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints
+      options:
+        - label: This can be implemented without a new runtime dependency in the core.
+        - label: I checked that the Solid-OIDC specification does not already cover this differently.

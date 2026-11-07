@@ -1,0 +1,72 @@
+# Contributing
+
+Thanks for taking the time to improve SEBA. This document covers the practical parts:
+getting a working checkout, the checks a change has to pass, and the constraints that keep
+the library safe to ship.
+
+## Before you start
+
+- Open an issue for anything larger than a small fix, so the design is agreed before code.
+- Security problems do **not** go in an issue — see [`SECURITY.md`](SECURITY.md).
+- By contributing you agree to the [Code of Conduct](CODE_OF_CONDUCT.md), and that your
+  contribution is licensed under the MIT licence of this repository.
+
+## Setup
+
+```bash
+git clone https://github.com/gaballahtech/seba.git
+cd seba
+npm install
+```
+
+Node.js 20 or newer is required.
+
+## Checks
+
+Run these before opening a pull request; CI runs the same commands.
+
+```bash
+npm run typecheck     # tsc --noEmit + the examples project
+npm test              # vitest (unit tests, node environment)
+npm run build         # tsc -p tsconfig.build.json -> dist/
+```
+
+Optional but useful when you touched the examples or the protocol layer:
+
+```bash
+npm run example:react:build
+npm run validate:discovery       # public discovery documents, no login
+```
+
+`typecheck`, `test` and `build` must all pass. A pull request that skips or weakens an
+assertion to get green will not be merged.
+
+## What a change has to respect
+
+- **No new runtime dependencies in the core.** `jose` and `idb` are the only runtime
+  dependencies; adding another needs a clear size and maintenance argument in the issue.
+- **Keep the public surface small.** New exports are API commitments. Prefer a subpath
+  export over growing the root entry point.
+- **PNG only for brand assets.** No SVG is used or shipped; the component embeds 48×48 PNG
+  data URIs, and `assets/` holds the 512×512 originals.
+- **Never log or persist tokens outside the existing storage path.** Access tokens stay in
+  memory; only the refresh token and the DPoP key are deliberately persisted.
+- **Do not weaken validation.** `state`, RFC 9207 `iss`, `nonce`, PKCE S256, ID-token
+  signature/claims and `cnf.jkt` binding are all required. `allowNonCompliantCnf` and the
+  tolerance options exist for the documented edge cases, not as a shortcut.
+- **Browser and Node paths stay separate.** Platform code is loaded dynamically so a
+  browser bundle never contains the Node HTTP server.
+- **Tests come with behaviour.** New behaviour needs a unit test; bug fixes need a test
+  that fails before the fix.
+
+## Commit and pull request style
+
+- Commit messages follow `type: summary` (`fix:`, `feat:`, `docs:`, `test:`, `refactor:`,
+  `chore:`), in the imperative mood.
+- Keep pull requests focused; unrelated formatting or refactors belong in their own PR.
+- Fill in the pull request template, including what you actually ran.
+
+## Releasing
+
+Maintainers only. `npm version` + `npm publish` from `main`, a `vX.Y.Z` tag, and a
+`CHANGELOG.md` entry for every user-visible change.
