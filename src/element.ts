@@ -68,6 +68,7 @@ export class SebaLoginElement extends HTMLElementBase {
   #session: Session | null = null;
   #unsubscribe: (() => void) | null = null;
   #busy = false;
+  #restoreStarted = false;
 
   /** Current session, or `null` when signed out. */
   get session(): Session | null {
@@ -92,6 +93,9 @@ export class SebaLoginElement extends HTMLElementBase {
       name === "config"
     ) {
       this.#resetClient();
+      if (typeof this.isConnected === "boolean" && this.isConnected) {
+        void this.#restoreOrComplete();
+      }
     }
     this.#update();
   }
@@ -180,6 +184,7 @@ export class SebaLoginElement extends HTMLElementBase {
     this.#unsubscribe = null;
     this.#seba = null;
     this.#session = null;
+    this.#restoreStarted = false;
     this.#update();
   }
 
@@ -197,9 +202,13 @@ export class SebaLoginElement extends HTMLElementBase {
 
   /** Complete a callback URL, or resume the stored session on a normal page load. */
   async #restoreOrComplete(): Promise<void> {
+    if (this.#restoreStarted) {
+      return;
+    }
     if (this.#attr("client-id") === null || this.#attr("redirect-uri") === null) {
       return;
     }
+    this.#restoreStarted = true;
     const seba = this.#client();
     if (seba === null) {
       return;
