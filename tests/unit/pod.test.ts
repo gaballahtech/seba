@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { Seba, objectify, parseSubjectTriples, pod, toTurtle } from "../../src/index.js";
+import { objectify, parseSubjectTriples, pod, toTurtle } from "../../src/index.js";
 
 const XSD = "http://www.w3.org/2001/XMLSchema#";
 const SOLID = "http://www.w3.org/ns/solid/terms#";
@@ -65,8 +65,9 @@ describe("pod helpers", () => {
     expect(() => parseSubjectTriples("<https://a> <https://b> .")).toThrow(/expected 3 terms/);
   });
 
-  it("is reachable through Seba.pod and the pod namespace", () => {
-    expect(Seba.pod.parseSubjectTriples).toBe(parseSubjectTriples);
+  it("is reachable through the pod namespace without hanging off the facade", () => {
+    expect(pod.parseSubjectTriples).toBe(parseSubjectTriples);
     expect(pod.toTurtle).toBe(toTurtle);
+    expect(pod.objectify).toBe(objectify);
   });
 });

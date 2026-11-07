@@ -4,6 +4,26 @@ This guide maps the common operations of `@inrupt/solid-client-authn-browser` (v
 `@gaballahtech/seba`. It is written from a real migration (a Google-Tasks-style todo app
 validated against solidcommunity.net).
 
+## From SEBA 0.5.0 to 0.5.1
+
+- **`Seba.pod` was removed** so login-only bundles can tree-shake the Turtle parser. Use the
+  subpath (preferred) or the root named exports:
+
+  ```ts
+  // before — 0.5.0
+  Seba.pod.toTurtle(triples);
+
+  // after — 0.5.1
+  import { toTurtle } from "@gaballahtech/seba/pod";
+  toTurtle(triples);
+  ```
+
+  `import { pod, parseSubjectTriples, objectify, toTurtle } from "@gaballahtech/seba"` still
+  works; those helpers are simply no longer attached to the `Seba` class.
+- **`sebaLogo.*.dataUri` is an SVG data URI now** (`data:image/svg+xml,...`). It is still
+  valid as an `<img src>`; only code that asserted the MIME prefix needs updating. The
+  raster originals are unchanged: `sebaLogo.*.png` still points at the shipped PNG.
+
 | Inrupt | SEBA | Notes |
 |---|---|---|
 | `handleIncomingRedirect()` on page load | `await seba.login()` **or** the explicit pair `seba.isCallbackResponse() && await seba.completeLogin()` | Both work. `login()` on a callback URL completes it; elsewhere it *navigates away* (document never unloads the promise). Use the explicit pair when that pattern is confusing. |

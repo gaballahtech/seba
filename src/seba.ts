@@ -7,7 +7,6 @@
 
 import { SebaClient, isAuthorizationResponse } from "./core/client.js";
 import { SessionEmitter } from "./core/events.js";
-import { pod } from "./pod.js";
 import type {
   LoginOptions,
   Platform,
@@ -56,8 +55,6 @@ export class Seba {
   readonly #client: Promise<SebaClient>;
   readonly #events = new SessionEmitter();
 
-  /** Pod helpers: `parseSubjectTriples`, `objectify` and `toTurtle`. */
-  static readonly pod = pod;
 
   /**
    * @param config - Client ID Document URL, redirect URI and optional storage settings.

@@ -4,15 +4,15 @@ import { Seba, SebaLoginElement, defineSebaLogin, sebaLogo, sebaLogoImage } from
 import { parseInlineConfig, parseProviders } from "../../src/element.js";
 
 describe("brand assets", () => {
-  it("inlines PNG artwork for every variant", () => {
+  it("inlines SVG artwork for every variant and still ships the PNG original", () => {
     for (const asset of Object.values(sebaLogo)) {
-      expect(asset.dataUri.startsWith("data:image/png;base64,")).toBe(true);
-      expect(asset.dataUri.length).toBeGreaterThan(400);
+      expect(asset.dataUri.startsWith("data:image/svg+xml,")).toBe(true);
+      expect(decodeURIComponent(asset.dataUri)).toContain('viewBox=\'0 0 512 512\'');
+      expect(asset.dataUri.length).toBeLessThan(700);
       expect(asset.png.startsWith("assets/")).toBe(true);
       expect(asset.png.endsWith(".png")).toBe(true);
       expect(asset.width).toBe(48);
       expect(asset.height).toBe(48);
-      expect(asset.dataUri).not.toContain("svg");
     }
   });
 

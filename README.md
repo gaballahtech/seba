@@ -28,6 +28,26 @@ the same in both.
 npm install @gaballahtech/seba
 ```
 
+## Bundle size
+
+Measured with rolldown against the published package (browser target, minified, gzip of
+every emitted chunk):
+
+| Entry point | gzip |
+|---|---|
+| `import { Seba } from "@gaballahtech/seba"` — `login`, `restoreSession`, `fetch`, `logout` | **~27.5 kB** |
+| `import { defineSebaLogin } from "@gaballahtech/seba"` — the `<seba-login>` element | **~30.4 kB** |
+| `import { toTurtle } from "@gaballahtech/seba/pod"` — Pod helpers only | **~0.35 kB** |
+
+`jose` (≈8.7 kB gzipped) and `idb` (≈1.2 kB) are declared dependencies, not inlined in
+`dist/`: the published files keep bare `import` statements, so the application's bundler
+includes them unless it marks them external. SEBA's own code is ≈17.6 kB of the core
+figure. A login-only bundle does not include the Turtle parser, and importing the Pod
+helpers from the root entry point does not force them on callers who never use them.
+
+There is no "<12 kB" guarantee. Earlier internal notes implied one; that target was never
+met and is not part of the published API.
+
 ## Publish a Client ID Document
 
 Host a JSON-LD document and use its URL as `clientId`. The `client_id` member must equal the
@@ -303,18 +323,27 @@ const unsubscribe = seba.onSessionExpired(() => {
 });
 ```
 
-### `Seba.pod`
+### Pod helpers
 
 Zero-dependency helpers for the Turtle subset used by Solid pods: `parseSubjectTriples`,
-`objectify` and `toTurtle` are also exported from the package root. They handle absolute
-IRIs, blank nodes, string/number/boolean literals, `@lang` and `^^<datatype>` suffixes, and
-ignore `@prefix`/`PREFIX`/`BASE` directives (prefix expansion is not performed).
+`objectify` and `toTurtle`. Import them from the `@gaballahtech/seba/pod` subpath so a
+login-only bundle never pulls the Turtle parser in:
+
+```ts
+import { pod, parseSubjectTriples, toTurtle } from "@gaballahtech/seba/pod";
+```
+
+They are also re-exported from the package root, and `pod` groups the three functions. They
+handle absolute IRIs, blank nodes, string/number/boolean literals, `@lang` and
+`^^<datatype>` suffixes, and ignore `@prefix`/`PREFIX`/`BASE` directives (prefix expansion
+is not performed).
 
 ## Brand & logo usage
 
-All artwork is PNG. The five 512×512 files in [`assets/`](assets) are shipped through the
-`./assets/*` export and are also embedded as 48×48 PNG data URIs, so the sign-in button paints
-without a network request. No SVG is generated, fetched or required.
+The five 512×512 PNG originals in [`assets/`](assets) are shipped through the `./assets/*`
+export for `og:image`, favicons and tooling that does not accept SVG. The sign-in button does
+not fetch them: each treatment is also embedded as an equivalent 48×48 inline SVG data URI,
+so it paints without a network request and stays crisp at any pixel density.
 
 | Variant | File | Use |
 |---|---|---|
@@ -333,8 +362,8 @@ without a network request. No SVG is generated, fetched or required.
 ```ts
 import { sebaLogo, sebaLogoImage } from "@gaballahtech/seba";
 
-sebaLogo.primary.png;      // "assets/seba-logo-primary.png"
-sebaLogoImage("favicon");  // "data:image/png;base64,..."
+sebaLogo.primary.png;      // "assets/seba-logo-primary.png" (raster original)
+sebaLogoImage("favicon");  // "data:image/svg+xml,..."   (inline, no request)
 ```
 
 Keep clear space of at least half the mark's height around the logo, do not recolour or

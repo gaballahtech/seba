@@ -1,13 +1,13 @@
 /**
- * SEBA brand assets (PNG only).
+ * SEBA brand assets.
  *
- * The 512x512 PNGs in `assets/` are shipped with the package through the `./assets/*`
- * export. A 48x48 PNG rendering of each treatment is inlined as a data URI so the
- * sign-in button paints without a network request and the core keeps zero runtime
- * dependencies.
+ * The 512x512 PNG originals in `assets/` are shipped with the package through the
+ * `./assets/*` export for og:image, favicons and contexts that do not accept SVG. The
+ * sign-in button uses inline SVG data URIs instead, so it paints without a network
+ * request, stays crisp at any pixel density and keeps the core dependency-free.
  */
 
-import { SEBA_PNG_DATA } from "./png-data.js";
+import { SEBA_SVG_DATA } from "./svg-data.js";
 
 /** Supported logo treatments. */
 export type SebaLogoVariant = "primary" | "inverse" | "monochrome" | "solid" | "favicon";
@@ -18,13 +18,13 @@ export interface SebaLogoAsset {
   readonly variant: SebaLogoVariant;
   /** Human readable description. */
   readonly label: string;
-  /** Packaged 512x512 PNG file, relative to the package root. */
+  /** Packaged 512x512 PNG original, relative to the package root. */
   readonly png: string;
-  /** Inline `data:image/png;base64,...` rendering for runtime use. */
+  /** Inline `data:image/svg+xml,...` rendering for runtime use. */
   readonly dataUri: string;
-  /** Intrinsic width of the inlined PNG. */
+  /** Intrinsic width of the inlined artwork. */
   readonly width: 48;
-  /** Intrinsic height of the inlined PNG. */
+  /** Intrinsic height of the inlined artwork. */
   readonly height: 48;
 }
 
@@ -33,7 +33,7 @@ function asset(
   label: string,
   png: string,
 ): SebaLogoAsset {
-  return { variant, label, png, dataUri: SEBA_PNG_DATA[variant], width: 48, height: 48 };
+  return { variant, label, png, dataUri: SEBA_SVG_DATA[variant], width: 48, height: 48 };
 }
 
 const ASSETS: Record<SebaLogoVariant, SebaLogoAsset> = {
@@ -47,7 +47,7 @@ const ASSETS: Record<SebaLogoVariant, SebaLogoAsset> = {
 /** Manifest of every brand asset. */
 export const sebaLogo: Readonly<Record<SebaLogoVariant, SebaLogoAsset>> = ASSETS;
 
-/** Inline PNG data URI for a logo treatment, ready for an `<img src>`. */
+/** Inline SVG data URI for a logo treatment, ready for an `<img src>`. */
 export function sebaLogoImage(variant: SebaLogoVariant = "primary"): string {
   return ASSETS[variant].dataUri;
 }

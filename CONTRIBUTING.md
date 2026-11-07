@@ -47,8 +47,9 @@ assertion to get green will not be merged.
   dependencies; adding another needs a clear size and maintenance argument in the issue.
 - **Keep the public surface small.** New exports are API commitments. Prefer a subpath
   export over growing the root entry point.
-- **PNG only for brand assets.** No SVG is used or shipped; the component embeds 48×48 PNG
-  data URIs, and `assets/` holds the 512×512 originals.
+- **Brand assets keep their PNG originals.** `assets/` holds the 512×512 PNG files; the
+  component embeds equivalent 48×48 inline SVG data URIs so they stay small and crisp.
+  Do not replace the PNG originals with SVG.
 - **Never log or persist tokens outside the existing storage path.** Access tokens stay in
   memory; only the refresh token and the DPoP key are deliberately persisted.
 - **Do not weaken validation.** `state`, RFC 9207 `iss`, `nonce`, PKCE S256, ID-token

@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.5.1] — 2026-11-07
+
+Size and API cleanup.
+
+### Changed
+
+- **Breaking:** `Seba.pod` is removed. Import the helpers from `@gaballahtech/seba/pod` (or
+  from the root named exports). Keeping them off the facade lets a login-only bundle
+  tree-shake the Turtle parser: the core browser bundle drops from 28.7 kB to 27.5 kB
+  gzipped.
+- **Inline artwork is SVG.** The component embeds 48×48 SVG data URIs instead of base64
+  PNGs. The vector geometry was measured from the PNG originals and matched at ≈99% pixel
+  IoU. The five 512×512 PNG files are still shipped in `assets/`. The element bundle drops
+  from 35.6 kB to 30.4 kB gzipped.
+- **`sebaLogoImage()` returns an SVG data URI.** `sebaLogo.*.dataUri` is now
+  `data:image/svg+xml,...`; `sebaLogo.*.png` still names the shipped PNG original.
+
+### Docs
+
+- README states measured bundle sizes, explains that `jose` (≈8.7 kB gzipped) and `idb`
+  (≈1.2 kB) are dependencies bundled by the application, and drops the stale "<12 kB" idea.
+
 ## [0.5.0] — 2026-11-06
 
 Additive release: a drop-in sign-in component, session events, Pod helpers and React
