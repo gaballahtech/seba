@@ -581,7 +581,7 @@ export class SebaLoginElement extends HTMLElementBase {
     other.textContent = "Other…";
     fragment.appendChild(other);
     choices.replaceChildren(fragment);
-    this.#showHintFor(primary);
+    this.#hideHint();
   }
 
   #showHintFor(issuer: string | null): void {
