@@ -37,8 +37,10 @@ export interface SebaConfig {
    * Session storage backend. Defaults to `"indexeddb"` in browsers and
    * `"memory"` in Node.js.
    *
-   * `"indexeddb"` persists only the refresh token, the DPoP private key and
-   * non-secret session metadata. Access tokens are never persisted.
+   * `"indexeddb"` persists the refresh token, the DPoP private key and non-secret
+   * session metadata. If the provider issues no refresh token, the access token is
+   * persisted as well (soft-persist) so a reload can resume the session until it
+   * expires; refresh-token sessions never persist an access token.
    */
   storage?: StorageKind;
 
@@ -197,8 +199,9 @@ export type SessionChangeListener = (event: SessionChangeEvent) => void;
 /**
  * A token response that passed validation.
  *
- * Access tokens are held in memory only — never persisted or exposed by the
- * public API.
+ * Access tokens are never exposed by the public API. They stay in memory, except
+ * when the provider issues no refresh token: then the access token is persisted so
+ * a reload can resume the session until it expires.
  */
 export interface TokenSet {
   /** DPoP-bound access token. In memory only. */
@@ -333,7 +336,7 @@ export interface PersistedSession {
   provider: string;
   /** Client identifier the session was created for. */
   clientId: string;
-  /** Refresh token, when the provider issued one. Never an access token. */
+  /** Refresh token, when the provider issued one. */
   refreshToken?: string;
   /**
    * Access token, stored only when the provider issued no refresh token so that

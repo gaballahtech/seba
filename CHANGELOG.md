@@ -10,7 +10,8 @@ bindings. No behaviour change to login, refresh, storage or validation.
 - **`<seba-login>`** — a zero-dependency custom element with shadow DOM. It starts the login,
   completes the callback on the redirect route, exposes `login()`/`logout()`/`session`, and
   switches between "Sign in" and "Sign out". Attributes: `client-id`, `redirect-uri`,
-  `issuer`, `web-id`, `label`, `theme` (`auto`/`light`/`dark`), `logo`, `account`. Register it
+  `issuer`, `web-id`, `config` (JSON `SebaConfig` overrides), `label`, `theme`
+  (`auto`/`light`/`dark`), `logo`, `account`. Register it
   with `defineSebaLogin()`; importing the package stays side-effect free.
 - **Session events** — `onSessionChange`, `offSessionChange`, `onSessionExpired` and
   `getSession()` on the facade, plus `SessionChangeEvent`/`SessionChangeReason` types.
@@ -21,7 +22,7 @@ bindings. No behaviour change to login, refresh, storage or validation.
 - **React bindings** — `@gaballahtech/seba/react` exports `SebaLoginButton` and `useSession`.
   `react` is an optional peer dependency; the core entry point never imports it.
 - **PNG brand assets** — five 512×512 PNGs in `assets/` (primary, inverse, monochrome, solid,
-  favicon) served through the `./assets/*` export, plus 64×64 PNG data URIs embedded for the
+  favicon) served through the `./assets/*` export, plus 48×48 PNG data URIs embedded for the
   component. No SVG is used or shipped. The source PNGs were re-encoded losslessly (pixel
   comparison unchanged) and now total ~24 kB instead of ~64 kB.
 

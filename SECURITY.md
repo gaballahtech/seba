@@ -7,7 +7,7 @@
 | Authorization code interception / mix-up | Access + refresh tokens | PKCE S256, random `state`, RFC 9207 `iss` checked against the issuer the request was built for. |
 | ID token forgery or substitution | User identity (`WebID`) | Signature verified with the provider's JWKS; `iss`, `aud`, `azp`, `exp`, `iat`, `nonce` validated; algorithm taken from the key metadata, not the token's preference. |
 | DPoP proof replay | Pod access | A new proof (new `jti`, new signature) for every attempt; no proof cache, no TTL, no reuse option. |
-| Token theft from the browser profile | Refresh token, DPoP key | Only the refresh token and key are persisted (IndexedDB); access token stays in memory; no `localStorage`; no cookies set by the library. |
+| Token theft from the browser profile | Refresh token, DPoP key, soft-persisted access token | The refresh token and key are persisted (IndexedDB). When a provider issues no refresh token, the access token is persisted too so a reload can resume the session until it expires; refresh-token sessions never store an access token. No `localStorage`; no cookies set by the library. |
 | XSS on the application origin | Everything the origin can reach | Out of scope to *prevent*; the library minimises the window (no tokens in DOM, no globals, no logging) and documents the residual risk. |
 | Credential leak via redirects | Access token, DPoP proof | `redirect: "manual"`; cross-origin redirect responses are returned to the caller, never re-issued with credentials. |
 | Duplicate side effects from retries | Application state | Automatic replay is limited to replayable requests (`GET`/`HEAD`/`OPTIONS`, or a re-readable body), at most one nonce retry and one refresh retry. |

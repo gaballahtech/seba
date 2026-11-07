@@ -168,8 +168,10 @@ login(options)
 
 The persisted record (`PersistedSession`) is the only durable state:
 `version`, `webId`, `provider`, `clientId`, `refreshToken`, `key`
-(`CryptoKey` + public JWK, or exported JWK), optional `scope`, `createdAt`.
-**No access token field exists in the type**, so it cannot be persisted by accident.
+(`CryptoKey` + public JWK, or exported JWK), optional `scope`, `createdAt`, plus
+`accessToken`/`accessTokenExpiresAt` **only** for providers that issue no refresh token
+(soft-persist, so a reload can resume until the token expires). Refresh-token sessions
+never persist an access token.
 
 Refresh is serialized through a single in-flight promise in `core/session.ts`, so ten
 concurrent `fetch()` calls that all see an expired token perform one refresh, not ten

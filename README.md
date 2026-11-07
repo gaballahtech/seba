@@ -114,9 +114,10 @@ effects; register the element once with `defineSebaLogin()`.
 ```
 
 The element starts the login on click, completes the callback when it is loaded on the
-redirect route, and switches to "Sign out" once a session exists. Attributes: `client-id`
-and `redirect-uri` (required), plus `issuer`, `web-id`, `label`, `theme` (`auto` | `light` |
-`dark`), `logo`, and `account`.
+redirect route, restores the stored session on a normal page load, and switches to "Sign
+out" once a session exists. Attributes: `client-id` and `redirect-uri` (required), plus
+`issuer`, `web-id`, `config` (JSON `SebaConfig` overrides such as per-provider
+`tolerances`), `label`, `theme` (`auto` | `light` | `dark`), `logo`, and `account`.
 
 React (`react` is an optional peer dependency):
 
@@ -288,7 +289,7 @@ ignore `@prefix`/`PREFIX`/`BASE` directives (prefix expansion is not performed).
 ## Brand & logo usage
 
 All artwork is PNG. The five 512×512 files in [`assets/`](assets) are shipped through the
-`./assets/*` export and are also embedded as 64×64 PNG data URIs, so the sign-in button paints
+`./assets/*` export and are also embedded as 48×48 PNG data URIs, so the sign-in button paints
 without a network request. No SVG is generated, fetched or required.
 
 | Variant | File | Use |
@@ -339,8 +340,9 @@ All errors extend `SebaError` and carry a stable `code`:
 - ID token signatures are verified against the discovered JWKS; `aud` must contain the
   client ID and `"solid"` when the provider advertises `webid`; `cnf.jkt` must match the
   session key (and is required for `webid`).
-- The refresh token and DPoP key are the only persisted secrets; access tokens are held in
-  a private field.
+- The refresh token and DPoP key are persisted. When a provider issues **no** refresh token,
+  the access token is stored too (soft-persist) so a reload can resume the session until it
+  expires; refresh-token sessions never store an access token.
 - Non-extractable `CryptoKey` storage is used when the engine supports structured cloning;
   otherwise an exported JWK fallback is used (documented in `SECURITY.md`).
 - Refresh-token rotation is atomic, and concurrent refreshes are collapsed into one.
