@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { Seba, SebaLoginElement, defineSebaLogin, sebaLogo, sebaLogoImage } from "../../src/index.js";
-import { parseInlineConfig } from "../../src/element.js";
+import { parseInlineConfig, parseProviders } from "../../src/element.js";
 
 describe("brand assets", () => {
   it("inlines PNG artwork for every variant", () => {
@@ -39,6 +39,13 @@ describe("<seba-login>", () => {
     expect(parseInlineConfig("{invalid")).toMatchObject({ error: expect.any(String) });
     expect(parseInlineConfig("[1,2]")).toMatchObject({ error: expect.any(String) });
     expect(parseInlineConfig("null")).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("parses provider lists, dropping duplicates and non-URLs", () => {
+    expect(
+      parseProviders("https://solidcommunity.net/, https://solidweb.org nope https://solidcommunity.net"),
+    ).toEqual(["https://solidcommunity.net/", "https://solidweb.org/"]);
+    expect(parseProviders("")).toEqual([]);
   });
 
   it("exposes callback detection through the facade", () => {

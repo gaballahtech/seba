@@ -17,6 +17,8 @@ const OBSERVED_ATTRIBUTES = [
   "client-id",
   "redirect-uri",
   "issuer",
+  "issuer-url",
+  "providers",
   "web-id",
   "config",
   "label",
@@ -40,6 +42,21 @@ const STYLES = `
   --seba-text: #f5f3ff;
   --seba-border: rgba(255, 255, 255, 0.3);
 }
+.bar {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0.4em;
+}
+select {
+  max-width: 12em;
+  padding: 0.5em 0.6em;
+  border: 1px solid var(--seba-border);
+  border-radius: 0.65em;
+  background: var(--seba-surface);
+  color: var(--seba-text);
+  font: inherit;
+}
+select:focus-visible { outline: 2px solid var(--seba-accent); outline-offset: 2px; }
 button {
   display: inline-flex;
   align-items: center;
@@ -150,9 +167,17 @@ export class SebaLoginElement extends HTMLElementBase {
       return this.#seba;
     }
     const clientId = this.#attr("client-id");
-    const redirectUri = this.#attr("redirect-uri");
-    if (clientId === null || redirectUri === null) {
-      this.#fail(new SebaConfigError("<seba-login> requires client-id and redirect-uri attributes."));
+    if (clientId === null) {
+      this.#fail(new SebaConfigError("<seba-login> requires a client-id attribute."));
+      return null;
+    }
+    const redirectUri = this.#attr("redirect-uri") ?? currentPageUrl();
+    if (redirectUri === null) {
+      this.#fail(
+        new SebaConfigError(
+          "<seba-login> needs a redirect-uri attribute outside a browser document.",
+        ),
+      );
       return null;
     }
     const account = this.#attr("account");
@@ -195,6 +220,10 @@ export class SebaLoginElement extends HTMLElementBase {
       this.#emit("seba:session-expired", null);
     } else if (event.reason !== "logout") {
       this.#emit(`seba:${event.reason}`, event.session);
+      if (event.reason === "login") {
+        // Compatibility alias used by SolidOS' <solid-ui-login-button>.
+        this.#emit("login-success", event.session);
+      }
     } else {
       this.#emit("seba:logout", null);
     }
@@ -205,7 +234,7 @@ export class SebaLoginElement extends HTMLElementBase {
     if (this.#restoreStarted) {
       return;
     }
-    if (this.#attr("client-id") === null || this.#attr("redirect-uri") === null) {
+    if (this.#attr("client-id") === null) {
       return;
     }
     this.#restoreStarted = true;
@@ -228,12 +257,20 @@ export class SebaLoginElement extends HTMLElementBase {
   }
 
   #identity(): LoginOptions {
-    const issuer = this.#attr("issuer");
+    const select = this.shadowRoot?.querySelector<HTMLSelectElement>(".issuer");
+    const chosen = select !== null && select !== undefined && !select.hidden ? select.value : "";
+    const issuer =
+      this.#attr("issuer") ?? this.#attr("issuer-url") ?? (chosen === "" ? null : chosen);
     const webId = this.#attr("web-id");
     return {
       ...(issuer === null ? {} : { issuer }),
       ...(webId === null ? {} : { webId }),
     };
+  }
+
+  #providers(): string[] {
+    const raw = this.#attr("providers");
+    return raw === null ? [] : parseProviders(raw);
   }
 
   #render(): void {
@@ -246,10 +283,13 @@ export class SebaLoginElement extends HTMLElementBase {
     }
     root.innerHTML =
       `<style>${STYLES}</style>` +
+      `<div class="bar">` +
+      `<select class="issuer" part="issuer" aria-label="Identity provider" hidden></select>` +
       `<button part="button" type="button">` +
-      `<img class="logo" part="logo" alt="" width="64" height="64" decoding="async">` +
+      `<img class="logo" part="logo" alt="" width="48" height="48" decoding="async">` +
       `<span class="label" part="label"></span>` +
-      `</button>`;
+      `</button>` +
+      `</div>`;
     this.#update();
   }
 
@@ -270,6 +310,8 @@ export class SebaLoginElement extends HTMLElementBase {
       label.textContent = authenticated ? "Sign out" : (this.#attr("label") ?? "Sign in with Solid");
     }
 
+    this.#updateProviders();
+
     const logo = root?.querySelector<HTMLImageElement>(".logo");
     if (logo) {
       const requested = this.#attr("logo");
@@ -281,6 +323,32 @@ export class SebaLoginElement extends HTMLElementBase {
         logo.src = sebaLogoImage(variant);
         logo.alt = "";
       }
+    }
+  }
+
+  /** Show a provider picker only when there is a real choice and nobody is signed in. */
+  #updateProviders(): void {
+    const select = this.shadowRoot?.querySelector<HTMLSelectElement>(".issuer");
+    if (!select) {
+      return;
+    }
+    const providers = this.#providers();
+    const fixedIssuer = this.#attr("issuer") ?? this.#attr("issuer-url");
+    if (providers.length < 2 || this.#session !== null || fixedIssuer !== null) {
+      select.hidden = true;
+      return;
+    }
+    select.hidden = false;
+    const previous = select.value;
+    const options = providers.map((provider) => {
+      const option = document.createElement("option");
+      option.value = provider;
+      option.textContent = provider.replace(/^https?:\/\//, "").replace(/\/$/, "");
+      return option;
+    });
+    select.replaceChildren(...options);
+    if (providers.includes(previous)) {
+      select.value = previous;
     }
   }
 
@@ -310,6 +378,39 @@ export class SebaLoginElement extends HTMLElementBase {
     }
     this.dispatchEvent(new CustomEvent("seba:error", { detail: { error }, bubbles: true, composed: true }));
   }
+}
+
+/** Current document URL without its fragment, used when `redirect-uri` is omitted. */
+function currentPageUrl(): string | null {
+  if (typeof window === "undefined" || window.location === undefined) {
+    return null;
+  }
+  const url = new URL(window.location.href);
+  url.hash = "";
+  return url.href;
+}
+
+/**
+ * Parse a comma/space separated `providers` attribute into absolute HTTP(S) issuers.
+ *
+ * Invalid entries are dropped rather than breaking the whole element.
+ */
+export function parseProviders(value: string): string[] {
+  const seen = new Set<string>();
+  for (const candidate of value.split(/[\s,]+/)) {
+    if (candidate === "") {
+      continue;
+    }
+    try {
+      const url = new URL(candidate);
+      if (url.protocol === "https:" || url.protocol === "http:") {
+        seen.add(url.href);
+      }
+    } catch {
+      // Not a URL: ignore so one typo cannot disable the whole picker.
+    }
+  }
+  return [...seen];
 }
 
 /** Inline `config` attribute value -> SebaConfig overlay (or a reason string). */

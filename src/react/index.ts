@@ -17,8 +17,8 @@ import type { Seba } from "../seba.js";
 export interface SebaLoginButtonProps {
   /** Published Solid Client ID Document URL. */
   clientId: string;
-  /** Redirect URI registered in the Client ID Document. */
-  redirectUri: string;
+  /** Redirect URI registered in the Client ID Document. Defaults to the current page URL. */
+  redirectUri?: string;
   /** Identity provider issuer, used instead of WebID discovery. */
   issuer?: string;
   /** WebID whose profile lists the provider. */
@@ -33,6 +33,8 @@ export interface SebaLoginButtonProps {
   account?: string;
   /** Advanced configuration (e.g. per-provider `tolerances`), serialized into the element. */
   config?: Partial<Omit<SebaConfig, "clientId" | "redirectUri">>;
+  /** Identity providers offered in a picker; at least two are needed to show it. */
+  providers?: string[];
   /** Extra class name for the host element. */
   className?: string;
   /** Called after a successful login or restore. */
@@ -84,13 +86,14 @@ export function SebaLoginButton(props: SebaLoginButtonProps): ReactElement {
   return createElement("seba-login", {
     ref: host,
     "client-id": props.clientId,
-    "redirect-uri": props.redirectUri,
+    ...(props.redirectUri === undefined ? {} : { "redirect-uri": props.redirectUri }),
     ...(props.issuer === undefined ? {} : { issuer: props.issuer }),
     ...(props.webId === undefined ? {} : { "web-id": props.webId }),
     ...(props.label === undefined ? {} : { label: props.label }),
     ...(props.theme === undefined ? {} : { theme: props.theme }),
     ...(props.logo === undefined ? {} : { logo: props.logo }),
     ...(props.account === undefined ? {} : { account: props.account }),
+    ...(props.providers === undefined ? {} : { providers: props.providers.join(" ") }),
     ...(props.config === undefined ? {} : { config: JSON.stringify(props.config) }),
     ...(props.className === undefined ? {} : { class: props.className }),
   });
