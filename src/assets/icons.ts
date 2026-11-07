@@ -10,7 +10,7 @@
 import { SEBA_SVG_DATA } from "./svg-data.js";
 
 /** Supported logo treatments. */
-export type SebaLogoVariant = "primary" | "inverse" | "monochrome" | "solid" | "favicon";
+export type SebaLogoVariant = "primary" | "inverse" | "monochrome" | "solid" | "favicon" | "white";
 
 /** One brand asset. */
 export interface SebaLogoAsset {
@@ -42,6 +42,7 @@ const ASSETS: Record<SebaLogoVariant, SebaLogoAsset> = {
   monochrome: asset("monochrome", "SEBA logo (monochrome)", "assets/seba-logo-monochrome.png"),
   solid: asset("solid", "SEBA icon", "assets/seba-icon-solid.png"),
   favicon: asset("favicon", "SEBA favicon", "assets/seba-icon-favicon.png"),
+  white: asset("white", "SEBA logo (white)", "assets/seba-logo-inverse.png"),
 };
 
 /** Manifest of every brand asset. */

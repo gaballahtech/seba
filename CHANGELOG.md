@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.5.3] — 2026-11-07
+
+A Google-quality sign-in surface.
+
+### Added
+
+- The sign-in button opens a polished dialog: a custom provider listbox with brand
+  tiles (loved name + domain on every row), an "or" divider, and a manual input for
+  WebID or provider URL. WebIDs resolve through `solid:oidcIssuer` discovery.
+- "New to Solid? Create a Pod →" link in the dialog, following the selected
+  provider's sign-up page (falls back to the `get-a-pod` attribute).
+- `lastIssuer()` / `forgetIssuer()`: the previous provider is remembered in
+  `localStorage` (`seba:last-issuer`), pinned first in the picker and shown as
+  "Continue with …" on the button.
+- Dark theme support for the whole dialog, focus trap, Esc/backdrop close,
+  Arrow/Home/End/Enter/Escape/typeahead keyboard support and ARIA listbox semantics.
+- Purple gradient button (`#7C3AED → #5B21B6`) with a bare white logo treatment
+  (`logo="white"` artwork variant) so it reads cleanly on any theme.
+
+### Changed
+
+- The 0.5.2 provider-chips experiment (never published) is reverted; this release
+  is the redesigned outcome of the same feedback.
+- New exports: `providerInfo`, `PROVIDER_INFO`, `issuerDomain`, `providerChoices`,
+  `classifyInput`, `lastIssuer`, `forgetIssuer`, `ProviderInfo`, `ProviderChoice`,
+  and the `white` logo variant.
+
 ## [0.5.1] — 2026-11-07
 
 Size and API cleanup.
