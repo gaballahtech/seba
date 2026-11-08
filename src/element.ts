@@ -165,11 +165,8 @@ const STYLES = `
 .trigger[aria-expanded="true"] .chev { transform: rotate(180deg); }
 
 .menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  inset-inline: 0;
-  z-index: 1;
-  margin: 0;
+  position: static;
+  margin: 0.4rem 0 0;
   padding: 0.30rem;
   list-style: none;
   max-height: min(12.5rem, 40vh);
@@ -196,7 +193,6 @@ const STYLES = `
 .menu .ok { margin-inline-start: auto; display: inline-flex; color: var(--seba-accent); visibility: hidden; }
 .menu .ok svg { display: block; width: 1.1em; height: 1.1em; }
 .menu li[aria-selected="true"] .ok { visibility: visible; }
-.menu[data-flip="up"] { top: auto; bottom: calc(100% + 6px); }
 
 .or {
   display: flex;
@@ -422,26 +418,7 @@ export class SebaLoginElement extends HTMLElementBase {
     const selected = this.#selectedIndex(choices);
     this.#activeIndex = selected;
     this.#update();
-    raf(() => {
-      this.#updateMenuFlip();
-      this.#focusOption();
-    });
-  }
-
-  /** Open the listbox upward when it would spill past the card or window edge. */
-  #updateMenuFlip(): void {
-    const menu = this.shadowRoot?.querySelector<HTMLElement>(".menu");
-    if (!menu || menu.hidden) {
-      return;
-    }
-    const rect = menu.getBoundingClientRect();
-    const dialog = this.shadowRoot?.querySelector<HTMLElement>(".dialog")?.getBoundingClientRect();
-    const limit = Math.min((window.innerHeight ?? 0) - 8, (dialog?.bottom ?? Infinity) - 12);
-    if (rect.bottom > limit) {
-      menu.setAttribute("data-flip", "up");
-    } else {
-      menu.removeAttribute("data-flip");
-    }
+    raf(() => this.#focusOption());
   }
 
   #collapseMenu(): void {
