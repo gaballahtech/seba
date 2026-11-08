@@ -427,15 +427,16 @@ export class SebaLoginElement extends HTMLElementBase {
     });
   }
 
-  /** Open the listbox upward when it would spill beyond the window edge. */
+  /** Open the listbox upward when it would spill past the card or window edge. */
   #updateMenuFlip(): void {
     const menu = this.shadowRoot?.querySelector<HTMLElement>(".menu");
     if (!menu || menu.hidden) {
       return;
     }
     const rect = menu.getBoundingClientRect();
-    const room = rect.bottom > (window.innerHeight ?? 0) - 8;
-    if (room) {
+    const dialog = this.shadowRoot?.querySelector<HTMLElement>(".dialog")?.getBoundingClientRect();
+    const limit = Math.min((window.innerHeight ?? 0) - 8, (dialog?.bottom ?? Infinity) - 12);
+    if (rect.bottom > limit) {
       menu.setAttribute("data-flip", "up");
     } else {
       menu.removeAttribute("data-flip");
