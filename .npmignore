@@ -1,0 +1,19 @@
+# Build artifacts / generated
+examples/react/dist/
+examples/**/dist/
+graphify-out/
+.graphify-venv/
+.graphify/
+
+# Tests/dev (not in files, but be explicit)
+tests/
+.github/
+*.test.ts
+*.test.tsx
+vitest.config.*
+tsconfig*.json
+
+# Local/env
+.env*
+*.log
+.DS_Store

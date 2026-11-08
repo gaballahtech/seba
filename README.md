@@ -156,9 +156,8 @@ out" once a session exists. Attributes: `client-id` is the only required one; `r
 defaults to the current page URL (fragment removed). Also available: `issuer` (or the
 SolidOS-style alias `issuer-url`), `providers` (space/comma separated issuer URLs rendered as
 a picker when there are two or more), `web-id`, `config` (JSON `SebaConfig` overrides such as
-per-provider `tolerances`), `label`, `theme` (`auto` | `light` | `dark`), `logo`, and
-`account`. The element also emits `login-success` as an alias of `seba:login` for apps
-written against `solid-ui`.
+per-provider `tolerances`), `label`, `theme` (`auto` | `light` | `dark`), `logo`,`account`, and `get-a-pod` (defaults to `https://solidproject.org/get_a_pod`; only absolute `https:` URLs are accepted). The element also emits `login-success` as an alias of `seba:login` for apps
+written against `solid-ui`. Utility: `safeExternalHttpUrl(value)` returns a validated absolute `https:` URL or `null`.
 
 React (`react` is an optional peer dependency):
 
@@ -230,8 +229,12 @@ See [`examples/node/index.ts`](examples/node/index.ts).
 | `clientId` | yes | HTTPS URL of your Client ID Document (loopback `http` allowed in development). |
 | `redirectUri` | yes | Callback URL published verbatim in `redirect_uris`. Node.js: loopback `http` only. |
 | `storage` | no | `"indexeddb"` (browser default) or `"memory"` (Node.js default). |
-| `debug` | no | `true` emits non-sensitive diagnostics through `console.debug`. |
+| `debug` | no | `true` emits non-sensitive diagnostics through `console.debug` (no tokens/secrets/PII). |
 | `openAuthorizationUrl` | Node.js | Receives the authorization URL; without it interactive login is impossible. |
+| `persistSessionWithoutRefreshToken` | no | `"auto"` (default) soft-persists access token + DPoP key when no refresh token is issued (reload works until expiry). `"never"` keeps such sessions in memory only. Refresh-token sessions are unchanged. |
+| `maxDpopNonceRetries` | no | Retries for `use_dpop_nonce` challenges at the token endpoint/resource fetch (default `1`). |
+| `tolerances` | no | Per-issuer opt-in relaxations for known non-compliant providers (e.g. `allowNonCompliantAudience`, `allowNonCompliantCnf`). |
+| `account` | no | Storage namespace for concurrent sessions in the same browser profile (`seba:<account>`). |
 
 ### `login(options?)`
 

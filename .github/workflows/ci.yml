@@ -20,3 +20,9 @@ jobs:
       - run: npm run build
       - name: Lint package publishing/exports
         run: npx --yes publint@0.3.12
+      - name: Check exports/types (attw, best-effort)
+        continue-on-error: true
+        run: npm run build && npx --yes @arethetypeswrong/cli@0.18.2 --pack . --ignore-rules cjs-resolves-to-esm
+      - name: Coverage (informational)
+        continue-on-error: true
+        run: npm run test:coverage

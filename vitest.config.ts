@@ -6,5 +6,12 @@ export default defineConfig({
     include: ["tests/**/*.test.ts"],
     testTimeout: 20_000,
     restoreMocks: true,
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html", "lcov"],
+      include: ["src/**/*.ts"],
+      exclude: ["src/**/*.d.ts", "src/cli.ts"],
+      reportsDirectory: "./coverage",
+    },
   },
 });

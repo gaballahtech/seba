@@ -10,7 +10,11 @@
   - `"never"` keeps such sessions in memory only (higher privacy; no reload survival).
   Refresh-token sessions are unchanged.
 - `safeExternalHttpUrl()` helper (exported) for strict `https:` URL validation in UI/navigation contexts.
-- GitHub Actions CI workflow (typecheck, tests, build, package exports/types check).
+- GitHub Actions CI workflow (typecheck, tests, build, `publint`; `attw` best-effort due to tool crash on this export shape; coverage informational).
+- `test:coverage` script (`@vitest/coverage-v8`) and coverage config.
+- `.github/dependabot.yml` (npm + GitHub Actions, weekly).
+- `RELEASING.md` with SemVer/stability contract and path to 1.0.
+- `.npmignore` / tightened `files` to exclude `examples/react/dist` and dev cruft from published tarballs.
 
 ### Security / Hardening
 
