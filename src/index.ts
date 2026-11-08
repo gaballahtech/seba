@@ -42,7 +42,7 @@ export { objectify, parseSubjectTriples, pod, toTurtle } from "./pod.js";
 export type { PodDocument, PodTerm, PodTriple, PodValue } from "./pod.js";
 export { isSebaLogoVariant, sebaLogo, sebaLogoImage } from "./assets/icons.js";
 export type { SebaLogoAsset, SebaLogoVariant } from "./assets/icons.js";
-export { issuerDomain, providerInfo, PROVIDER_INFO } from "./assets/providers.js";
+export { DEFAULT_PROVIDERS, issuerDomain, providerInfo } from "./assets/providers.js";
 export type { ProviderInfo } from "./assets/providers.js";
 export { SebaLoginElement, defineSebaLogin, parseInlineConfig, parseProviders, providerChoices } from "./element.js";
 export type { ProviderChoice } from "./element.js";

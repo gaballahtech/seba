@@ -42,7 +42,7 @@ export const PROVIDER_INFO: Readonly<Record<string, ProviderInfo>> = {
   "https://inrupt.net/": {
     name: "Inrupt.net",
     signup: "https://inrupt.net/register",
-    iconUri: monogramTile("#1D2333", "I"),
+    iconUri: PROVIDER_ART["https://login.inrupt.com/"],
   },
   "https://trinpod.eu/": {
     name: "trinpod",
@@ -52,9 +52,26 @@ export const PROVIDER_INFO: Readonly<Record<string, ProviderInfo>> = {
   "https://solidweb.org/": {
     name: "SolidWeb.org",
     signup: "https://solidweb.org/register",
-    iconUri: monogramTile("#5B21B6", "S"),
+    iconUri: PROVIDER_ART["https://solidweb.org/"],
+  },
+  "https://solidweb.me/": {
+    name: "SolidWeb.me",
+    signup: "https://solidweb.me/register",
+    iconUri: PROVIDER_ART["https://solidweb.me/"],
   },
 };
+
+/**
+ * The default choice set: the five community Pods every developer expects.
+ * An app that omits `providers` gets these; an app passes its own list instead.
+ */
+export const DEFAULT_PROVIDERS: readonly string[] = [
+  "https://solidcommunity.net/",
+  "https://login.inrupt.com/",
+  "https://inrupt.net/",
+  "https://solidweb.org/",
+  "https://solidweb.me/",
+];
 
 const FALLBACK_HUES = ["#7C3AED", "#0E7C86", "#B45309", "#1D4ED8", "#9D174D", "#065F46"];
 

@@ -10,7 +10,7 @@
 
 import { isSebaLogoVariant, sebaLogoImage } from "./assets/icons.js";
 import type { SebaLogoVariant } from "./assets/icons.js";
-import { issuerDomain, PROVIDER_INFO, providerInfo } from "./assets/providers.js";
+import { DEFAULT_PROVIDERS, issuerDomain, PROVIDER_INFO, providerInfo } from "./assets/providers.js";
 import { SebaConfigError, SebaSessionExpiredError } from "./core/errors.js";
 import { Seba } from "./seba.js";
 import type { LoginOptions, Session, SessionChangeEvent } from "./types.js";
@@ -695,7 +695,7 @@ export class SebaLoginElement extends HTMLElementBase {
 
   #providers(): string[] {
     const raw = this.#attr("providers");
-    return raw === null ? [] : parseProviders(raw);
+    return raw === null ? [...DEFAULT_PROVIDERS] : parseProviders(raw);
   }
 
   #activeIssuer(): string | null {
@@ -889,12 +889,7 @@ export class SebaLoginElement extends HTMLElementBase {
     if (!link) {
       return;
     }
-    const choices = providerChoices(this.#providers());
-    const selectedIssuer =
-      root?.querySelector<HTMLElement>(".pname")?.dataset.issuer ?? choices[0]?.issuer ?? lastIssuer();
-    const known = selectedIssuer === null ? null : providerInfo(selectedIssuer);
-    const fallback = this.#attr("get-a-pod") ?? "https://solidproject.org/get_a_pod";
-    link.href = known?.signup ?? fallback;
+    link.href = this.#attr("get-a-pod") ?? "https://solidproject.org/get_a_pod";
   }
 
   #defaultVariant(): SebaLogoVariant {

@@ -9,12 +9,8 @@ import {
   sebaLogo,
   sebaLogoImage,
 } from "../../src/index.js";
-import {
-  classifyInput,
-  parseInlineConfig,
-  parseProviders,
-  providerChoices,
-} from "../../src/element.js";
+import { classifyInput, parseInlineConfig, parseProviders, providerChoices } from "../../src/element.js";
+import { DEFAULT_PROVIDERS } from "../../src/assets/providers.js";
 
 describe("brand assets", () => {
   it("inlines SVG artwork for every variant and still ships the PNG original", () => {
@@ -67,6 +63,13 @@ describe("provider branding", () => {
     expect(info.iconUri.startsWith("data:image/svg+xml,")).toBe(true);
     expect(info.iconUri.startsWith("data:image/")).toBe(true);
     expect(issuerDomain("https://login.inrupt.com/")).toBe("login.inrupt.com");
+  });
+
+  it("ships a five-provider default set when the app omits the list", () => {
+    expect(DEFAULT_PROVIDERS.length).toBe(5);
+    expect(new Set(DEFAULT_PROVIDERS).size).toBe(5);
+    expect(DEFAULT_PROVIDERS[0]).toBe("https://solidcommunity.net/");
+    expect(DEFAULT_PROVIDERS).toEqual(expect.arrayContaining(["https://solidweb.me/"]));
   });
 
   it("pins the remembered issuer first in the picker choices", () => {
