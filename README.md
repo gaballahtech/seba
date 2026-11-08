@@ -10,7 +10,7 @@
   <a href="https://www.npmjs.com/package/@gaballahtech/seba"><img alt="npm version" src="https://img.shields.io/npm/v/%40gaballahtech%2Fseba"></a>
   <a href="https://github.com/gaballahtech/seba/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/gaballahtech/seba/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green.svg"></a>
-  <img alt="Node.js >= 20" src="https://img.shields.io/badge/node-%3E%3D20-brightgreen?logo=node.js&amp;logoColor=white">
+  <a href="https://github.com/gaballahtech/seba/blob/main/package.json"><img alt="Node.js version" src="https://img.shields.io/node/v/%40gaballahtech%2Fseba"></a>
   <img alt="Standards: Solid-OIDC, DPoP, PKCE" src="https://img.shields.io/badge/standards-Solid--OIDC%20%7C%20DPoP%20%7C%20PKCE-5b21b6">
 </p>
 
