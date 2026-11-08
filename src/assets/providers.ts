@@ -1,22 +1,24 @@
 /**
  * Known Solid provider branding for the `<seba-login>` picker.
  *
- * Each entry carries a human-friendly name, a sign-up link and a small inline
- * SVG tile (data URI on a colored backdrop). Unknown issuers fall back to a
- * monogram tile derived from the hostname so no provider ever renders bare.
+ * Each entry carries a human-friendly name, a sign-up link and small inline
+ * artwork (the service's own favicon packaged at 48x48). Unknown issuers fall
+ * back to a monogram tile derived from the hostname so no provider renders bare.
  */
 
-const HEXAGON =
-  "M256 48 L436.1 152 L436.1 360 L256 464 L75.9 360 L75.9 152 Z";
+import { PROVIDER_ART } from "./provider-art.js";
+
+export interface ProviderInfo {
+  /** Marketing name, e.g. "Solid Project". */
+  readonly name: string;
+  /** Account sign-up URL, or `null` when unknown (hosts fall back to `get-a-pod`). */
+  readonly signup: string | null;
+  /** 48x48 inline artwork data URI, ready for `<img src>`. */
+  readonly iconUri: string;
+}
 
 function svg(data: string): string {
   return `data:image/svg+xml,${encodeURIComponent(data)}`;
-}
-
-function tile(bg: string, body: string): string {
-  return svg(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="${bg}"/><path d="${HEXAGON}" fill="${body}"/></svg>`,
-  );
 }
 
 function monogramTile(bg: string, letter: string, fg = "#FFFFFF"): string {
@@ -25,47 +27,32 @@ function monogramTile(bg: string, letter: string, fg = "#FFFFFF"): string {
   );
 }
 
-export interface ProviderInfo {
-  /** Marketing name, e.g. "Solid Project". */
-  readonly name: string;
-  /** Account sign-up URL, or `null` when unknown (hosts fall back to `get-a-pod`). */
-  readonly signup: string | null;
-  /** 48x48 inline SVG tile, ready for `<img src>`. */
-  readonly iconUri: string;
-}
-
-const PURPLE = "#7C3AED";
-const LAVENDER = "#EDE6FF";
-const NAVY = "#1D2333";
-const TEAL = "#0E7C86";
-const VIOLET = "#5B21B6";
-
 /** Curated entries for the providers Solid users actually have Pods on. */
 export const PROVIDER_INFO: Readonly<Record<string, ProviderInfo>> = {
   "https://solidcommunity.net/": {
     name: "Solid Project",
     signup: "https://solidcommunity.net/register",
-    iconUri: tile(LAVENDER, PURPLE),
+    iconUri: PROVIDER_ART["https://solidcommunity.net/"],
   },
   "https://login.inrupt.com/": {
     name: "Inrupt",
     signup: "https://signup.inrupt.com/",
-    iconUri: monogramTile(NAVY, "i"),
+    iconUri: PROVIDER_ART["https://login.inrupt.com/"],
   },
   "https://inrupt.net/": {
     name: "Inrupt.net",
     signup: "https://inrupt.net/register",
-    iconUri: monogramTile(NAVY, "I"),
+    iconUri: monogramTile("#1D2333", "I"),
   },
   "https://trinpod.eu/": {
     name: "trinpod",
     signup: "https://trinpod.eu/",
-    iconUri: monogramTile(TEAL, "t"),
+    iconUri: PROVIDER_ART["https://trinpod.eu/"],
   },
   "https://solidweb.org/": {
     name: "SolidWeb.org",
     signup: "https://solidweb.org/register",
-    iconUri: monogramTile(VIOLET, "S"),
+    iconUri: monogramTile("#5B21B6", "S"),
   },
 };
 

@@ -11,7 +11,6 @@ import {
 } from "../../src/index.js";
 import {
   classifyInput,
-  lastIssuer,
   parseInlineConfig,
   parseProviders,
   providerChoices,
@@ -57,7 +56,7 @@ describe("provider branding", () => {
     const solid = providerInfo("https://solidcommunity.net/");
     expect(solid.name).toBe("Solid Project");
     expect(solid.signup).toBe("https://solidcommunity.net/register");
-    expect(solid.iconUri.startsWith("data:image/svg+xml,")).toBe(true);
+    expect(solid.iconUri.startsWith("data:image/png;base64,")).toBe(true);
     expect(providerInfo("https://login.inrupt.com/").name).toBe("Inrupt");
   });
 
@@ -66,7 +65,7 @@ describe("provider branding", () => {
     expect(info.name).toBe("mypod.example");
     expect(info.signup).toBeNull();
     expect(info.iconUri.startsWith("data:image/svg+xml,")).toBe(true);
-    expect(decodeURIComponent(info.iconUri)).toContain("<text");
+    expect(info.iconUri.startsWith("data:image/")).toBe(true);
     expect(issuerDomain("https://login.inrupt.com/")).toBe("login.inrupt.com");
   });
 

@@ -108,7 +108,7 @@ const STYLES = `
   position: relative;
   width: min(25rem, calc(100vw - 2rem));
   max-height: calc(100vh - 2rem);
-  overflow: auto;
+  overflow: visible;
   border-radius: 1.1em;
   background: var(--seba-surface);
   color: var(--seba-text);
@@ -171,8 +171,10 @@ const STYLES = `
   margin: 0;
   padding: 0.30rem;
   list-style: none;
-  max-height: 16rem;
+  max-height: min(17.5rem, calc(100vh - 10rem));
   overflow: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   background: var(--seba-raised);
   border: 1px solid var(--seba-border);
   border-radius: 0.8em;
