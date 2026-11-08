@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.5.15] — 2026-11-08
 
 ### Added
 
@@ -21,6 +21,11 @@
 - `<seba-login>`: `get-a-pod` attribute is now restricted to absolute `https:` URLs (prevents unsafe schemes like `javascript:`).
 - `<seba-login>`: provider menu rendering now sets image/text via DOM properties (no dynamic `innerHTML` attribute injection).
 - Debug logging: removed WebID from the post-login debug message (no secrets/PII in debug output).
+
+### Documentation
+
+- Major README overhaul (clear quick starts, config/API docs, constraints, provider table, brand assets/logos).
+- `SECURITY.md` / `ARCHITECTURE.md` updated for soft-persist configuration and debug privacy.
 
 ## [0.5.14] — 2026-11-07
 

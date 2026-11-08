@@ -65,9 +65,20 @@ assertion to get green will not be merged.
 - Commit messages follow `type: summary` (`fix:`, `feat:`, `docs:`, `test:`, `refactor:`,
   `chore:`), in the imperative mood.
 - Keep pull requests focused; unrelated formatting or refactors belong in their own PR.
-- Fill in the pull request template, including what you actually ran.
+- Fill in the pull request template, including **what you actually ran** and the specific behavior/security impact.
+
+## Contribution quality (human-reviewed, reviewable changes)
+
+To keep maintenance sustainable and avoid low-quality/automated “slop” submissions:
+
+- **Understand what you submit.** You should be able to explain the change, tradeoffs, and tests. Review any tool/AI-assisted output before opening a PR.
+- **Attach work to a real issue or a clear, scoped problem.** Avoid drive-by bulk PRs.
+- **Make it reviewable.** Prefer small PRs with focused diffs, concrete reproduction/fix details, and tests that fail before the fix (when applicable).
+- **Be honest and specific.** Describe observed behavior, environment, and evidence (logs/screenshots/commands) — not generic claims.
+- **Respect repo policy/tooling.** If maintainers request disclosure of AI/tool assistance or specific process steps, follow the project’s current guidance.
+
+(Repo admins may also enforce branch/ruleset protections in GitHub settings; see GitHub’s rulesets/branch protection docs.)
 
 ## Releasing
 
-Maintainers only. `npm version` + `npm publish` from `main`, a `vX.Y.Z` tag, and a
-`CHANGELOG.md` entry for every user-visible change.
+Maintainers only. See [`RELEASING.md`](./RELEASING.md) for the SemVer/stability policy, 1.0 path, and publishing checklist (version bump, changelog, checks/build/publint, `npm pack --dry-run`, publish/provenance).

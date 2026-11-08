@@ -1,37 +1,44 @@
 <p align="center">
-  <img src="./assets/seba-logo-primary.png" alt="SEBA logo" width="420" />
+  <img src="./assets/seba-logo-primary.png" alt="SEBA logo" width="420">
 </p>
 
 <p align="center">
-  <strong>Solid-OIDC authentication for JavaScript apps</strong><br/>
+  <strong>Solid-OIDC authentication for JavaScript apps</strong><br>
   Login, session restore, and DPoP-signed <code>fetch</code> — with a small, standards-based API.
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@gaballahtech/seba"><img alt="npm version" src="https://img.shields.io/npm/v/%40gaballahtech%2Fseba?label=npm&color=0a66c2" /></a>
-  <a href="https://github.com/gaballahtech/seba/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/gaballahtech/seba/actions/workflows/ci.yml/badge.svg?branch=main" /></a>
-  <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-1f883d" /></a>
-  <img alt="Node >= 20" src="https://img.shields.io/badge/node-%3E%3D20-3c873a" />
-  <img alt="Solid-OIDC + DPoP + PKCE" src="https://img.shields.io/badge/auth-Solid--OIDC%20%7C%20DPoP%20%7C%20PKCE-5b21b6" />
+  <a href="https://www.npmjs.com/package/@gaballahtech/seba"><img alt="npm version" src="https://img.shields.io/npm/v/%40gaballahtech%2Fseba?label=npm&color=0a66c2"></a>
+  <a href="https://github.com/gaballahtech/seba/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/gaballahtech/seba/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-1f883d"></a>
+  <img alt="Node.js >= 20" src="https://img.shields.io/badge/node-%3E%3D20-3c873a?logo=node.js&logoColor=white">
+  <img alt="Standards: Solid-OIDC, DPoP, PKCE" src="https://img.shields.io/badge/standards-Solid--OIDC%20%7C%20DPoP%20%7C%20PKCE-5b21b6">
 </p>
 
 <p align="center">
   <sub>
-    <img src="./assets/seba-icon-solid.png" alt="SEBA icon" width="18" height="18" />
-    &nbsp; Library icons/assets: <code>assets/seba-logo-*.png</code>, <code>assets/seba-icon-*.png</code>
+    <img src="./assets/seba-icon-solid.png" alt="SEBA icon" width="18" height="18">
+    &nbsp; Brand assets in this repo: <code>assets/seba-logo-*.png</code>, <code>assets/seba-icon-*.png</code>
   </sub>
 </p>
 
 ---
 
-`@gaballahtech/seba` (SEBA) is a developer-friendly Solid-OIDC client. It handles the protocol details (PKCE, authorization code, ID token validation, DPoP-bound tokens, refresh, revocation) so you can focus on your app.
+`@gaballahtech/seba` (SEBA) is a Solid-OIDC client library for JavaScript. It implements the protocol pieces most apps need — PKCE S256, authorization code flow, ID token validation (JWKS/signature/claims), DPoP-bound access, refresh, and revocation — behind a small API.
+
+**Good fit if:** you’re building a browser app, Node.js tool, or React app that needs to sign in with a Solid Identity Provider and make authenticated requests to protected resources (Pods/servers).
+
+**Important constraints (read before integrating):**
+- **Browser security boundary:** tokens/keys live in the browser profile (IndexedDB by default). A successful XSS on your origin can compromise session material — treat XSS prevention/CSP as required (see [Security](#security)).
+- **Node.js login is not “magic”:** Node has no browser UI, so you must provide `openAuthorizationUrl` and use a **loopback** `redirectUri`; Node storage defaults to in-memory.
+- **Provider differences are real:** Solid-OIDC compliance varies. SEBA is strict by default and supports explicit per-issuer `tolerances` for known non-compliant cases (documented/tested cases in [Provider compatibility](#provider-compatibility)).
 
 ## Why SEBA
 
-- **Simple API:** `login()`, `restoreSession()`, `fetch()`, `logout()` (+ `session` / `getSession()`).
-- **Secure by default:** PKCE S256, `state` + RFC 9207 `iss` checks, nonce, ID token signature/claim validation, DPoP proofs (fresh per request), and redirect safety.
-- **Works across runtimes:** browser (ESM), Node.js (>= 20), and a zero-build `<seba-login>` Web Component.
-- **Honest interoperability:** strict validation by default, with explicit opt-in tolerances for known non-compliant providers (see [Provider compatibility](#provider-compatibility)).
+- **Small API:** `login()`, `restoreSession()`, `fetch()`, `logout()` (+ `session` / `getSession()`).
+- **Standards-based security defaults:** PKCE S256, `state` + RFC 9207 `iss` checks, nonce, ID token validation, DPoP proofs (fresh per request), and redirect credential safety.
+- **Multiple integration styles:** browser ESM, Node.js (>= 20), zero-build `<seba-login>` Web Component, and React helpers.
+- **Transparent behavior:** token-free public session info, explicit errors, and documented interoperability tradeoffs.
 
 ## Table of contents
 
