@@ -196,6 +196,7 @@ const STYLES = `
 .menu .ok { margin-inline-start: auto; display: inline-flex; color: var(--seba-accent); visibility: hidden; }
 .menu .ok svg { display: block; width: 1.1em; height: 1.1em; }
 .menu li[aria-selected="true"] .ok { visibility: visible; }
+.menu[data-flip="up"] { top: auto; bottom: calc(100% + 6px); }
 
 .or {
   display: flex;
