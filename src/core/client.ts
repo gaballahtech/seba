@@ -72,6 +72,7 @@ interface ResolvedConfig {
   readonly allowNonCompliantCnf?: boolean;
   readonly tolerances?: Record<string, ComplianceTolerances>;
   readonly maxDpopNonceRetries: number;
+  readonly persistSessionWithoutRefreshToken: "auto" | "never";
   readonly account?: string;
 }
 
@@ -95,6 +96,7 @@ export class SebaClient {
       storage: platform.createStorage(this.#config.storage),
       fetchImpl: platform.fetch,
       maxDpopNonceRetries: this.#config.maxDpopNonceRetries,
+      persistSessionWithoutRefreshToken: this.#config.persistSessionWithoutRefreshToken,
       onSessionChange: (event) => {
         options.onSessionChange?.(event);
       },
@@ -449,7 +451,7 @@ export class SebaClient {
     });
     await this.#platform.pendingAuth.clear();
     this.#platform.clearCallback?.();
-    this.#debug(`authenticated as ${result.identity.webId}`);
+    this.#debug("authenticated session established");
     const session = this.#sessions.toPublicSession();
     if (session === null) {
       throw new SebaAuthError("The session was created but could not be read back.");
@@ -531,6 +533,19 @@ function resolveConfig(config: SebaConfig, platform: Platform): ResolvedConfig {
     );
   }
 
+  let persistSessionWithoutRefreshToken: "auto" | "never" = "auto";
+  if (config.persistSessionWithoutRefreshToken !== undefined) {
+    if (
+      config.persistSessionWithoutRefreshToken !== "auto" &&
+      config.persistSessionWithoutRefreshToken !== "never"
+    ) {
+      throw new SebaConfigError(
+        'persistSessionWithoutRefreshToken must be "auto" or "never".',
+      );
+    }
+    persistSessionWithoutRefreshToken = config.persistSessionWithoutRefreshToken;
+  }
+
   return {
     clientId,
     redirectUri: config.redirectUri,
@@ -541,6 +556,7 @@ function resolveConfig(config: SebaConfig, platform: Platform): ResolvedConfig {
     ...(config.allowNonCompliantCnf === true ? { allowNonCompliantCnf: true } : {}),
     ...(config.tolerances === undefined ? {} : { tolerances: config.tolerances }),
     maxDpopNonceRetries,
+    persistSessionWithoutRefreshToken,
     ...(config.account === undefined ? {} : { account: config.account }),
   };
 }

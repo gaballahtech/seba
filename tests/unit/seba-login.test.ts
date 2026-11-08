@@ -9,7 +9,13 @@ import {
   sebaLogo,
   sebaLogoImage,
 } from "../../src/index.js";
-import { classifyInput, parseInlineConfig, parseProviders, providerChoices } from "../../src/element.js";
+import {
+  classifyInput,
+  parseInlineConfig,
+  parseProviders,
+  providerChoices,
+  safeExternalHttpUrl,
+} from "../../src/element.js";
 import { DEFAULT_PROVIDERS } from "../../src/assets/providers.js";
 
 describe("brand assets", () => {
@@ -147,3 +153,25 @@ describe("<seba-login>", () => {
   });
 });
 
+
+describe("safeExternalHttpUrl", () => {
+  it("accepts absolute https URLs", () => {
+    expect(safeExternalHttpUrl("https://solidproject.org/get_a_pod")).toBe(
+      "https://solidproject.org/get_a_pod",
+    );
+    expect(safeExternalHttpUrl("  https://example.com/path?q=1  ")).toBe(
+      "https://example.com/path?q=1",
+    );
+  });
+
+  it("rejects unsafe or non-https schemes and invalid values", () => {
+    expect(safeExternalHttpUrl("javascript:alert(1)")).toBeNull();
+    expect(safeExternalHttpUrl("data:text/html,hi")).toBeNull();
+    expect(safeExternalHttpUrl("http://example.com/")).toBeNull();
+    expect(safeExternalHttpUrl("ftp://example.com/")).toBeNull();
+    expect(safeExternalHttpUrl("not a url")).toBeNull();
+    expect(safeExternalHttpUrl("")).toBeNull();
+    expect(safeExternalHttpUrl(null)).toBeNull();
+    expect(safeExternalHttpUrl(undefined)).toBeNull();
+  });
+});

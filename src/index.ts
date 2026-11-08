@@ -44,5 +44,12 @@ export { isSebaLogoVariant, sebaLogo, sebaLogoImage } from "./assets/icons.js";
 export type { SebaLogoAsset, SebaLogoVariant } from "./assets/icons.js";
 export { DEFAULT_PROVIDERS, issuerDomain, providerInfo } from "./assets/providers.js";
 export type { ProviderInfo } from "./assets/providers.js";
-export { SebaLoginElement, defineSebaLogin, parseInlineConfig, parseProviders, providerChoices } from "./element.js";
+export {
+  SebaLoginElement,
+  defineSebaLogin,
+  parseInlineConfig,
+  parseProviders,
+  providerChoices,
+  safeExternalHttpUrl,
+} from "./element.js";
 export type { ProviderChoice } from "./element.js";

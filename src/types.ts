@@ -126,6 +126,18 @@ export interface SebaConfig {
   maxDpopNonceRetries?: number;
 
   /**
+   * Controls persistence when the provider issues no refresh token.
+   *
+   * - `\"auto\"` (default): stores the access token + DPoP key (soft-persist) so a
+   *   page reload can resume the session until the access token expires.
+   * - `\"never\"`: keeps such sessions in memory only (higher privacy; no reload survival).
+   *
+   * Sessions with a refresh token are unaffected: refresh tokens/keys are persisted
+   * as before, and access tokens are never persisted.
+   */
+  persistSessionWithoutRefreshToken?: "auto" | "never";
+
+  /**
    * Storage namespace enabling more than one concurrent session in the same browser
    * profile (multi-account). Each distinct account value gets its own IndexedDB
    * database (`seba:<account>`) and sessionStorage transaction key, so two `Seba`

@@ -65,6 +65,12 @@ export interface SessionManagerOptions {
    * @defaultValue 1
    */
   readonly maxDpopNonceRetries?: number;
+  /**
+   * Controls persistence when the provider issues no refresh token.
+   * `auto` (default) stores the access token + DPoP key so reload can resume until expiry.
+   * `never` keeps such sessions in memory only (more private, no reload survival).
+   */
+  readonly persistSessionWithoutRefreshToken?: "auto" | "never";
   /** Non-sensitive diagnostics. */
   readonly debug?: (message: string) => void;
   /** Receives session transitions (`login`, `restore`, `logout`, `expired`). */
@@ -142,34 +148,42 @@ export class SessionManager {
     this.#state = state;
 
     const noRefreshToken = input.tokens.refreshToken === undefined;
-    const record: PersistedSession = {
-      version: 1,
-      webId: state.identity.webId,
-      provider: state.identity.issuer,
-      clientId: state.clientId,
-      ...(noRefreshToken
-        ? {
-            // With no refresh token there is nothing else to fetch with after a
-            // reload, so the access token is stored to keep the session alive
-            // until it expires. It is never stored for refresh-token sessions.
-            accessToken: input.tokens.accessToken,
-            accessTokenExpiresAt: state.expiresAt,
-            subject: input.identity.subject,
-          }
-        : {}),
-      ...(noRefreshToken ? {} : { refreshToken: input.tokens.refreshToken }),
-      key: input.key,
-      createdAt: Date.now(),
-      ...(input.tokens.scope === undefined ? {} : { scope: input.tokens.scope }),
-    };
-    try {
-      await this.#options.storage.save(record);
-    } catch (error) {
-      this.#log("session storage is unavailable; the session will not survive a reload", error);
+    const softPersistNever =
+      noRefreshToken && this.#options.persistSessionWithoutRefreshToken === "never";
+
+    if (!softPersistNever) {
+      const record: PersistedSession = {
+        version: 1,
+        webId: state.identity.webId,
+        provider: state.identity.issuer,
+        clientId: state.clientId,
+        ...(noRefreshToken
+          ? {
+              // With no refresh token there is nothing else to fetch with after a
+              // reload, so the access token is stored to keep the session alive
+              // until it expires. It is never stored for refresh-token sessions.
+              accessToken: input.tokens.accessToken,
+              accessTokenExpiresAt: state.expiresAt,
+              subject: input.identity.subject,
+            }
+          : {}),
+        ...(noRefreshToken ? {} : { refreshToken: input.tokens.refreshToken }),
+        key: input.key,
+        createdAt: Date.now(),
+        ...(input.tokens.scope === undefined ? {} : { scope: input.tokens.scope }),
+      };
+      try {
+        await this.#options.storage.save(record);
+      } catch (error) {
+        this.#log("session storage is unavailable; the session will not survive a reload", error);
+      }
     }
+
     if (noRefreshToken) {
       this.#log(
-        "the provider issued no refresh token; the session is stored with its access token and expires when the token does",
+        softPersistNever
+          ? "the provider issued no refresh token; persistSessionWithoutRefreshToken='never' so the session stays in memory only"
+          : "the provider issued no refresh token; the session is stored with its access token and expires when the token does",
       );
     }
     this.#expiredNotified = false;

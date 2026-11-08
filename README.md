@@ -394,8 +394,9 @@ All errors extend `SebaError` and carry a stable `code`:
   client ID and `"solid"` when the provider advertises `webid`; `cnf.jkt` must match the
   session key (and is required for `webid`).
 - The refresh token and DPoP key are persisted. When a provider issues **no** refresh token,
-  the access token is stored too (soft-persist) so a reload can resume the session until it
-  expires; refresh-token sessions never store an access token.
+  the access token is stored too (soft-persist) by default so a reload can resume the session
+  until it expires; refresh-token sessions never store an access token. Set
+  `persistSessionWithoutRefreshToken: "never"` for higher privacy (no reload survival in that case).
 - Non-extractable `CryptoKey` storage is used when the engine supports structured cloning;
   otherwise an exported JWK fallback is used (documented in `SECURITY.md`).
 - Refresh-token rotation is atomic, and concurrent refreshes are collapsed into one.

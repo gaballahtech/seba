@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- `persistSessionWithoutRefreshToken?: "auto" | "never"` in `SebaConfig` (default `"auto"`).
+  - `"auto"` preserves existing behavior: when a provider issues no refresh token, the access
+    token and DPoP key are soft-persisted so a reload can resume the session until expiry.
+  - `"never"` keeps such sessions in memory only (higher privacy; no reload survival).
+  Refresh-token sessions are unchanged.
+- `safeExternalHttpUrl()` helper (exported) for strict `https:` URL validation in UI/navigation contexts.
+- GitHub Actions CI workflow (typecheck, tests, build, package exports/types check).
+
+### Security / Hardening
+
+- `<seba-login>`: `get-a-pod` attribute is now restricted to absolute `https:` URLs (prevents unsafe schemes like `javascript:`).
+- `<seba-login>`: provider menu rendering now sets image/text via DOM properties (no dynamic `innerHTML` attribute injection).
+- Debug logging: removed WebID from the post-login debug message (no secrets/PII in debug output).
+
 ## [0.5.14] — 2026-11-07
 
 A Google-quality sign-in surface.

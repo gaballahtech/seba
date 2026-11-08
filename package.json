@@ -84,7 +84,8 @@
     "example:react:build": "vite build --config examples/react/vite.config.ts",
     "validate:discovery": "npm run build && node scripts/validation/public-discovery.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:exports": "npm run build && npx --yes @arethetypeswrong/cli@0.18.2 --pack . --ignore-rules cjs-resolves-to-esm"
   },
   "dependencies": {
     "idb": "^8.0.3",

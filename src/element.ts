@@ -873,11 +873,32 @@ export class SebaLoginElement extends HTMLElementBase {
       li.dataset.index = String(index);
       li.tabIndex = -1;
       li.setAttribute("aria-selected", String(choice.issuer === selectedIssuer));
-      li.innerHTML =
-        `<img class="tile" alt="" width="48" height="48" decoding="async" src="${choice.iconUri}">` +
-        `<span class="pnames"><span class="pname">${escapeHtml(choice.name)}</span>` +
-        `<i class="pdomain">${escapeHtml(choice.domain)}</i></span>` +
-        `<span class="ok" aria-hidden="true"><svg viewBox="0 0 24 24" width="1em" height="1em" focusable="false"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" fill="currentColor"/></svg></span>`;
+
+      const img = document.createElement("img");
+      img.className = "tile";
+      img.alt = "";
+      img.width = 48;
+      img.height = 48;
+      img.decoding = "async";
+      img.src = choice.iconUri;
+
+      const names = document.createElement("span");
+      names.className = "pnames";
+      const pname = document.createElement("span");
+      pname.className = "pname";
+      pname.textContent = choice.name;
+      const pdomain = document.createElement("i");
+      pdomain.className = "pdomain";
+      pdomain.textContent = choice.domain;
+      names.append(pname, pdomain);
+
+      const ok = document.createElement("span");
+      ok.className = "ok";
+      ok.setAttribute("aria-hidden", "true");
+      ok.innerHTML =
+        `<svg viewBox="0 0 24 24" width="1em" height="1em" focusable="false"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" fill="currentColor"/></svg>`;
+
+      li.append(img, names, ok);
       return li;
     });
     menu.replaceChildren(...options);
@@ -889,7 +910,7 @@ export class SebaLoginElement extends HTMLElementBase {
     if (!link) {
       return;
     }
-    link.href = this.#attr("get-a-pod") ?? "https://solidproject.org/get_a_pod";
+    link.href = safeExternalHttpUrl(this.#attr("get-a-pod")) ?? "https://solidproject.org/get_a_pod";
   }
 
   #defaultVariant(): SebaLogoVariant {
@@ -1077,13 +1098,31 @@ function resolveIssuerHint(value: string): string | null {
   return null;
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+/**
+ * Validate an external navigation URL for use in element links.
+ *
+ * Only absolute `https:` URLs are accepted to prevent `javascript:`, `data:`,
+ * and other unsafe schemes from being used in rendered anchors.
+ *
+ * @returns The normalized `href`, or `null` when the value is missing or unsafe.
+ */
+export function safeExternalHttpUrl(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return null;
+  }
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "https:") {
+      return null;
+    }
+    return url.href;
+  } catch {
+    return null;
+  }
 }
 
 /**
