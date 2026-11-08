@@ -7,7 +7,7 @@
 | Authorization code interception / mix-up | Access + refresh tokens | PKCE S256, random `state`, RFC 9207 `iss` checked against the issuer the request was built for. |
 | ID token forgery or substitution | User identity (`WebID`) | Signature verified with the provider's JWKS; `iss`, `aud`, `azp`, `exp`, `iat`, `nonce` validated; algorithm taken from the key metadata, not the token's preference. |
 | DPoP proof replay | Pod access | A new proof (new `jti`, new signature) for every attempt; no proof cache, no TTL, no reuse option. |
-| Token theft from the browser profile | Refresh token, DPoP key, soft-persisted access token | The refresh token and key are persisted (IndexedDB). When a provider issues no refresh token, the access token is persisted too so a reload can resume the session until it expires; refresh-token sessions never store an access token. No `localStorage`; no cookies set by the library. |
+| Token theft from the browser profile | Refresh token, DPoP key, soft-persisted access token | The refresh token and key are persisted (IndexedDB). When a provider issues no refresh token, the access token is persisted too by default (`persistSessionWithoutRefreshToken: "auto"`) so a reload can resume the session until it expires; set `"never"` to keep such sessions in memory only. Refresh-token sessions never store an access token. No `localStorage`; no cookies set by the library. |
 | XSS on the application origin | Everything the origin can reach | Out of scope to *prevent*; the library minimises the window (no tokens in DOM, no globals, no logging) and documents the residual risk. |
 | Credential leak via redirects | Access token, DPoP proof | `redirect: "manual"`; cross-origin redirect responses are returned to the caller, never re-issued with credentials. |
 | Duplicate side effects from retries | Application state | Automatic replay is limited to replayable requests (`GET`/`HEAD`/`OPTIONS`, or a re-readable body), at most one nonce retry and one refresh retry. |
@@ -218,7 +218,7 @@ Audit checks that passed, with the mechanism:
 | `use_dpop_nonce` retry signs fresh | `requestTokenResponse()` loops and calls `signer.createProof({ nonce })` again; no cached proof. |
 | Refresh-token rotation | Returned refresh token overwrites the stored record with one IndexedDB `put`; concurrent refreshes collapse into one in-flight promise. |
 | `restoreSession()` fails closed on identity mismatch | Now clears storage and throws `SebaSessionExpiredError` (F2). |
-| No secrets in logs | `grep -rn "console\." src/` returns only `core/client.ts`'s `console.debug` of caller-supplied diagnostic messages (issuer, endpoint, WebID after success) and doc comments. No tokens, codes, verifiers, keys or proofs are logged. |
+| No secrets in logs | `debug: true` emits non-sensitive diagnostics (operation names, issuer/client identifiers, endpoint URLs) through `core/client.ts`'s `console.debug`. No tokens, authorization codes, verifiers, keys, proofs, or WebID/PII are logged. |
 
 Residual risk unchanged: XSS on the application origin can use the stored refresh token and
 key while the page is open; SEBA cannot prevent that.

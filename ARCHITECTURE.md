@@ -170,7 +170,7 @@ The persisted record (`PersistedSession`) is the only durable state:
 `version`, `webId`, `provider`, `clientId`, `refreshToken`, `key`
 (`CryptoKey` + public JWK, or exported JWK), optional `scope`, `createdAt`, plus
 `accessToken`/`accessTokenExpiresAt` **only** for providers that issue no refresh token
-(soft-persist, so a reload can resume until the token expires). Refresh-token sessions
+(soft-persist by default, controlled by `persistSessionWithoutRefreshToken`; so a reload can resume until the token expires when `"auto"`). Refresh-token sessions
 never persist an access token.
 
 Refresh is serialized through a single in-flight promise in `core/session.ts`, so ten
