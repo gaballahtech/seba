@@ -452,6 +452,79 @@ npx vite preview --config examples/react/vite.config.ts
 The React example expects its redirect URI to be `${window.location.origin}/auth/callback`
 and published in the Client ID Document.
 
+## Code graph
+
+If you want a visual map of the project, run Graphify on the repository root:
+
+```bash
+graphify .            # build the graph + HTML report
+```
+
+Graphify parses the code locally with tree-sitter (no LLM), then runs an optional semantic
+pass over docs and PDFs using whatever model your environment provides. It produces an HTML
+report, a `graph.json`, and optionally a `graph.svg` you can embed.
+
+Quick points:
+
+- Code is extracted locally and deterministically. Only docs/PDFs/images touch the LLM, and
+  only if you configure one.
+- Every relationship is tagged with a confidence tag (`EXTRACTED`, `INFERRED`, or
+  `AMBIGUOUS`) so you can see what is certain and what needs a human look. Big repeated
+  patterns from the semantics pass become the visible structure in the report.
+- For a code-only graph with no LLM at all, set `GRAPHIFY_BACKEND=none`.
+
+### What this repo's current graph looks like
+
+The graph was built from the current tree at commit `d83e203`: **705 nodes, 1715 edges,
+29 communities**, all local AST extraction with **no LLM calls**.
+
+Top hubs:
+
+- `SebaLoginElement` (48 edges)
+- `SebaAuthError` (33)
+- `TurtleParser` (29)
+- `SessionManager` (28)
+- `SebaConfigError` (25)
+- `Session` (25)
+- `Seba` (23)
+- `SebaClient` (20)
+- `SebaDiscoveryError` (19)
+
+Imported module maps:
+
+- `client.ts` (Community 0, 65 nodes)
+- `types.ts` (Community 1, 30)
+- `src/index.ts` (Community 2, 46)
+- `SebaLoginElement` (Community 3, 7)
+- `browser/storage.ts` (Community 4, 32)
+- `SebaClient` (Community 5, 14)
+- `oidc.ts` (Community 6, 33)
+- `TurtleParser` (Community 7)
+- `FakeProvider` (Community 8, 10)
+- `dpop.ts` (Community 9, 20)
+
+Knowledge gaps the graph flagged:
+
+- 6 isolated RFC nodes (`RFC-8414`, `RFC-9207`, `RFC-7636`, `RFC-9449`, …) with ≤1
+  connection.
+- `client.ts` cohesion 0.062 and `types.ts` cohesion 0.073 — weakly interconnected,
+  worth a future split if either grows.
+
+Update the graph with:
+
+```bash
+graphify update .            # re-extract code only, no LLM, no cost
+graphify cluster-only .      # regenerate report from existing graph.json
+```
+
+The graph is built from commit `d83e203`; compare `git rev-parse HEAD` if you want to know
+whether it is stale. Artifacts from this run (not committed; see `.gitignore`):
+
+- `graphify-out/graphify-out/graph.json` (624 KB)
+- `graphify-out/graphify-out/GRAPH_REPORT.md`
+- `graphify-out/graphify-out/graph.svg` (1.8 MB)
+- `graphify-out/graphify-out/graph.html` (670 KB)
+
 ## Validation tooling
 
 ```bash

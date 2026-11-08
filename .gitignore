@@ -1,4 +1,7 @@
 node_modules
+# Graphify knowledge graph artifacts (generated locally, not committed)
+graphify-out/
+.graphify-venv/
 css-data
 css.log
 examples/react/dist
