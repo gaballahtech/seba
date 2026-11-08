@@ -18,5 +18,5 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - name: Check package exports/types
-        run: npx --yes @arethetypeswrong/cli@0.18.2 --pack . --ignore-rules cjs-resolves-to-esm
+      - name: Lint package publishing/exports
+        run: npx --yes publint@0.3.12

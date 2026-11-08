@@ -85,7 +85,7 @@
     "validate:discovery": "npm run build && node scripts/validation/public-discovery.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:exports": "npm run build && npx --yes @arethetypeswrong/cli@0.18.2 --pack . --ignore-rules cjs-resolves-to-esm"
+    "check:exports": "npm run build && npx --yes publint@0.3.12"
   },
   "dependencies": {
     "idb": "^8.0.3",
