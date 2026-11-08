@@ -2,24 +2,19 @@
   <img src="./assets/seba-logo-primary.png" alt="SEBA logo" width="420">
 </p>
 
-<p align="center">
-  <strong>Solid-OIDC authentication for JavaScript apps</strong><br>
-  Login, session restore, and DPoP-signed <code>fetch</code> — with a small, standards-based API.
-</p>
+<h3 align="center">Solid-OIDC authentication for JavaScript apps</h3>
+<p align="center">Login, session restore, and DPoP-signed <code>fetch</code> — with a small, standards-based API.</p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@gaballahtech/seba"><img alt="npm version" src="https://img.shields.io/npm/v/%40gaballahtech%2Fseba?label=npm&color=0a66c2"></a>
+  <a href="https://www.npmjs.com/package/@gaballahtech/seba"><img alt="npm version" src="https://img.shields.io/npm/v/%40gaballahtech%2Fseba?label=npm&amp;color=0a66c2"></a>
   <a href="https://github.com/gaballahtech/seba/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/gaballahtech/seba/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-1f883d"></a>
-  <img alt="Node.js >= 20" src="https://img.shields.io/badge/node-%3E%3D20-3c873a?logo=node.js&logoColor=white">
+  <img alt="Node.js >= 20" src="https://img.shields.io/badge/node-%3E%3D20-3c873a?logo=node.js&amp;logoColor=white">
   <img alt="Standards: Solid-OIDC, DPoP, PKCE" src="https://img.shields.io/badge/standards-Solid--OIDC%20%7C%20DPoP%20%7C%20PKCE-5b21b6">
 </p>
 
 <p align="center">
-  <sub>
-    <img src="./assets/seba-icon-solid.png" alt="SEBA icon" width="18" height="18">
-    &nbsp; Brand assets in this repo: <code>assets/seba-logo-*.png</code>, <code>assets/seba-icon-*.png</code>
-  </sub>
+  <sub><img src="./assets/seba-icon-solid.png" alt="" width="18" height="18">&nbsp; Brand assets: <code>assets/seba-logo-*.png</code>, <code>assets/seba-icon-*.png</code></sub>
 </p>
 
 ---
