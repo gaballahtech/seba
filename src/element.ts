@@ -169,7 +169,7 @@ const STYLES = `
   margin: 0.4rem 0 0;
   padding: 0.30rem;
   list-style: none;
-  max-height: min(12.5rem, 40vh);
+  max-height: min(19rem, 55vh);
   overflow: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
