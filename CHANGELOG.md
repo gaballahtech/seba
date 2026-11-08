@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.5.11] — 2026-11-07
+## [0.5.12] — 2026-11-07
 
 A Google-quality sign-in surface.
 
