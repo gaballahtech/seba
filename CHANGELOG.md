@@ -84,8 +84,8 @@ bindings. No behaviour change to login, refresh, storage or validation.
 
 ### Notes
 
-- This release has **not yet been tested against a provider** in its component/React form.
-  The underlying login, refresh and DPoP paths are unchanged from 0.4.0.
+- Provider login was tested successfully (end-to-end sign-in flow). The underlying login,
+  refresh and DPoP paths are unchanged from 0.4.0.
 
 ## [0.4.0] — 2026-11-05
 
