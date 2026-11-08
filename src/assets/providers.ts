@@ -31,17 +31,12 @@ function monogramTile(bg: string, letter: string, fg = "#FFFFFF"): string {
 export const PROVIDER_INFO: Readonly<Record<string, ProviderInfo>> = {
   "https://solidcommunity.net/": {
     name: "Solid Project",
-    signup: "https://solidcommunity.net/register",
+    signup: "https://solidcommunity.net/",
     iconUri: PROVIDER_ART["https://solidcommunity.net/"],
   },
   "https://login.inrupt.com/": {
     name: "Inrupt",
-    signup: "https://signup.inrupt.com/",
-    iconUri: PROVIDER_ART["https://login.inrupt.com/"],
-  },
-  "https://inrupt.net/": {
-    name: "Inrupt.net",
-    signup: "https://inrupt.net/register",
+    signup: "https://start.inrupt.com/profile",
     iconUri: PROVIDER_ART["https://login.inrupt.com/"],
   },
   "https://trinpod.eu/": {
@@ -49,14 +44,39 @@ export const PROVIDER_INFO: Readonly<Record<string, ProviderInfo>> = {
     signup: "https://trinpod.eu/",
     iconUri: PROVIDER_ART["https://trinpod.eu/"],
   },
+  "https://trinpod.us/": {
+    name: "trinpod",
+    signup: "https://trinpod.us/",
+    iconUri: PROVIDER_ART["https://trinpod.us/"],
+  },
+  "https://pods.solidcommunity.au/": {
+    name: "Solid AU",
+    signup: "https://pods.solidcommunity.au/",
+    iconUri: PROVIDER_ART["https://pods.solidcommunity.au/"],
+  },
+  "https://solidweb.app/": {
+    name: "SolidWeb.app",
+    signup: "https://solidweb.app/",
+    iconUri: PROVIDER_ART["https://solidweb.app/"],
+  },
+  "https://teamid.live/": {
+    name: "teamID",
+    signup: "https://teamid.live/",
+    iconUri: PROVIDER_ART["https://teamid.live/"],
+  },
+  "https://solid.openlinksw.com:8445/": {
+    name: "OpenLink",
+    signup: "https://solid.openlinksw.com:8445/register",
+    iconUri: PROVIDER_ART["https://solid.openlinksw.com:8445/"],
+  },
   "https://solidweb.org/": {
     name: "SolidWeb.org",
-    signup: "https://solidweb.org/register",
+    signup: "https://solidweb.org/",
     iconUri: PROVIDER_ART["https://solidweb.org/"],
   },
   "https://solidweb.me/": {
     name: "SolidWeb.me",
-    signup: "https://solidweb.me/register",
+    signup: "https://solidweb.me/",
     iconUri: PROVIDER_ART["https://solidweb.me/"],
   },
 };
@@ -68,9 +88,9 @@ export const PROVIDER_INFO: Readonly<Record<string, ProviderInfo>> = {
 export const DEFAULT_PROVIDERS: readonly string[] = [
   "https://solidcommunity.net/",
   "https://login.inrupt.com/",
-  "https://inrupt.net/",
   "https://solidweb.org/",
   "https://solidweb.me/",
+  "https://trinpod.eu/",
 ];
 
 const FALLBACK_HUES = ["#7C3AED", "#0E7C86", "#B45309", "#1D4ED8", "#9D174D", "#065F46"];

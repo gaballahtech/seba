@@ -51,7 +51,9 @@ describe("provider branding", () => {
   it("knows the common providers with names, sign-up links and tiles", () => {
     const solid = providerInfo("https://solidcommunity.net/");
     expect(solid.name).toBe("Solid Project");
-    expect(solid.signup).toBe("https://solidcommunity.net/register");
+    expect(solid.signup).toBe("https://solidcommunity.net/");
+    expect(providerInfo("https://login.inrupt.com/").signup).toBe("https://start.inrupt.com/profile");
+    expect(providerInfo("https://trinpod.us/").signup).toBe("https://trinpod.us/");
     expect(solid.iconUri.startsWith("data:image/png;base64,")).toBe(true);
     expect(providerInfo("https://login.inrupt.com/").name).toBe("Inrupt");
   });
@@ -69,7 +71,8 @@ describe("provider branding", () => {
     expect(DEFAULT_PROVIDERS.length).toBe(5);
     expect(new Set(DEFAULT_PROVIDERS).size).toBe(5);
     expect(DEFAULT_PROVIDERS[0]).toBe("https://solidcommunity.net/");
-    expect(DEFAULT_PROVIDERS).toEqual(expect.arrayContaining(["https://solidweb.me/"]));
+    expect(DEFAULT_PROVIDERS).toEqual(expect.arrayContaining(["https://solidweb.me/", "https://trinpod.eu/"]));
+    expect(DEFAULT_PROVIDERS).not.toContain("https://inrupt.net/");
   });
 
   it("pins the remembered issuer first in the picker choices", () => {
