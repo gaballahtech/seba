@@ -160,7 +160,8 @@ const STYLES = `
 .pnames { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .pname { font-weight: 600; font-size: 0.95em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pdomain { font-style: normal; font-size: 0.78em; color: var(--seba-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chev { flex: none; color: var(--seba-muted); font-size: 0.8em; transition: transform 130ms ease; }
+.chev { flex: none; display: inline-flex; color: var(--seba-muted); transition: transform 130ms ease; }
+.chev svg { display: block; width: 1.15em; height: 1.15em; }
 .trigger[aria-expanded="true"] .chev { transform: rotate(180deg); }
 
 .menu {
@@ -171,7 +172,7 @@ const STYLES = `
   margin: 0;
   padding: 0.30rem;
   list-style: none;
-  max-height: min(17.5rem, calc(100vh - 10rem));
+  max-height: min(12.5rem, 40vh);
   overflow: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -192,7 +193,8 @@ const STYLES = `
 .menu li:hover, .menu li[data-active="true"] { background: var(--seba-hover); }
 .menu li[aria-selected="true"] { background: var(--seba-tile); }
 .menu .tile { width: 1.75em; height: 1.75em; }
-.menu .ok { margin-inline-start: auto; color: var(--seba-accent); font-size: 0.85em; font-weight: 700; visibility: hidden; }
+.menu .ok { margin-inline-start: auto; display: inline-flex; color: var(--seba-accent); visibility: hidden; }
+.menu .ok svg { display: block; width: 1.1em; height: 1.1em; }
 .menu li[aria-selected="true"] .ok { visibility: visible; }
 
 .or {
@@ -269,6 +271,7 @@ export class SebaLoginElement extends HTMLElementBase {
   #menuOpen = false;
   #activeIndex = -1;
   #errorText = "";
+  #selectedIssuer: string | null = null;
 
   /** Current session, or `null` when signed out. */
   get session(): Session | null {
@@ -385,9 +388,8 @@ export class SebaLoginElement extends HTMLElementBase {
     raf(() => trigger?.focus());
   }
 
-  #selectLastIssuer(_choices: ProviderChoice[]): void {
-    // providerChoices() already pins the remembered issuer first, so the trigger
-    // renders with it selected by construction.
+  #selectLastIssuer(choices: ProviderChoice[]): void {
+    this.#selectedIssuer = choices[0]?.issuer ?? null;
   }
 
   #closeDialog = (): void => {
@@ -419,7 +421,25 @@ export class SebaLoginElement extends HTMLElementBase {
     const selected = this.#selectedIndex(choices);
     this.#activeIndex = selected;
     this.#update();
-    raf(() => this.#focusOption());
+    raf(() => {
+      this.#updateMenuFlip();
+      this.#focusOption();
+    });
+  }
+
+  /** Open the listbox upward when it would spill beyond the window edge. */
+  #updateMenuFlip(): void {
+    const menu = this.shadowRoot?.querySelector<HTMLElement>(".menu");
+    if (!menu || menu.hidden) {
+      return;
+    }
+    const rect = menu.getBoundingClientRect();
+    const room = rect.bottom > (window.innerHeight ?? 0) - 8;
+    if (room) {
+      menu.setAttribute("data-flip", "up");
+    } else {
+      menu.removeAttribute("data-flip");
+    }
   }
 
   #collapseMenu(): void {
@@ -429,18 +449,12 @@ export class SebaLoginElement extends HTMLElementBase {
     this.#menuOpen = false;
     this.#activeIndex = -1;
     this.#update();
-    this.shadowRoot?.querySelector<HTMLButtonElement>(".trigger")?.focus();
   }
 
   #selectedIndex(choices: ProviderChoice[]): number {
-    const selectedIssuer = this.shadowRoot?.querySelector<HTMLSpanElement>(".pname")?.dataset.issuer;
-    if (selectedIssuer) {
-      const found = choices.findIndex((c) => c.issuer === selectedIssuer);
-      if (found >= 0) {
-        return found;
-      }
-    }
-    return 0;
+    const selected = this.#selectedIssuer ?? choices[0]?.issuer ?? "";
+    const found = choices.findIndex((c) => c.issuer === selected);
+    return found >= 0 ? found : 0;
   }
 
   #focusOption(): void {
@@ -468,7 +482,7 @@ export class SebaLoginElement extends HTMLElementBase {
     }
     const index = Number((li as HTMLElement).dataset.index);
     const choices = providerChoices(this.#providers());
-    void this.#choose(choices[index]);
+    this.#choose(choices[index]);
   };
 
   #onMenuKeydown = (event: Event): void => {
@@ -499,7 +513,7 @@ export class SebaLoginElement extends HTMLElementBase {
       case "Enter":
       case " ":
         event.preventDefault();
-        return void this.#choose(choices[this.#activeIndex]);
+        return this.#choose(choices[this.#activeIndex]);
       case "Escape":
         event.preventDefault();
         this.#collapseMenu();
@@ -526,14 +540,17 @@ export class SebaLoginElement extends HTMLElementBase {
     }
   };
 
-  async #choose(choice: ProviderChoice | undefined): Promise<void> {
+  #choose(choice: ProviderChoice | undefined): void {
     if (choice === undefined) {
       return;
     }
+    // Selection only updates the field; the Continue button performs the login,
+    // so the flow is always explicit and predictable.
+    this.#selectedIssuer = choice.issuer;
     this.#rememberIssuer(choice.issuer);
     this.#collapseMenu();
-    this.#closeDialog();
-    void this.login({ issuer: choice.issuer });
+    this.#update();
+    raf(() => this.shadowRoot?.querySelector<HTMLButtonElement>(".continue")?.focus());
   }
 
   #onManualSubmit = (event: Event): void => {
@@ -541,7 +558,15 @@ export class SebaLoginElement extends HTMLElementBase {
     const input = this.shadowRoot?.querySelector<HTMLInputElement>(".manual input");
     const raw = input?.value.trim() ?? "";
     if (raw === "") {
-      this.#showError("Type a WebID or a provider URL, like https://solidcommunity.net.");
+      const choices = providerChoices(this.#providers());
+      const chosen = this.#selectedIssuer ?? choices[0]?.issuer ?? null;
+      if (chosen === null) {
+        this.#showError("Type a WebID or a provider URL, like https://solidcommunity.net.");
+        return;
+      }
+      this.#rememberIssuer(chosen);
+      this.#closeDialog();
+      void this.login({ issuer: chosen });
       return;
     }
     const target = classifyInput(raw);
@@ -742,7 +767,7 @@ export class SebaLoginElement extends HTMLElementBase {
       `<button class="trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Choose your Pod provider">` +
       `<img class="tile" alt="" width="48" height="48" decoding="async">` +
       `<span class="pnames"><span class="pname"></span><i class="pdomain"></i></span>` +
-      `<span class="chev" aria-hidden="true">\u25BE</span>` +
+      `<span class="chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="1em" height="1em" focusable="false"><path d="M7 10l5 5 5-5z" fill="currentColor"/></svg></span>` +
       `</button>` +
       `<ul class="menu" role="listbox" aria-label="Pod provider" data-owner="seba" hidden></ul>` +
       `</div>` +
@@ -816,7 +841,8 @@ export class SebaLoginElement extends HTMLElementBase {
       return;
     }
     const choices = providerChoices(this.#providers());
-    const index = Math.max(0, this.#selectedIndex(choices));
+    const selIdx = this.#selectedIssuer === null ? -1 : choices.findIndex((c) => c.issuer === this.#selectedIssuer);
+    const index = selIdx >= 0 ? selIdx : 0;
     const showTrigger = choices.length >= 2;
     trigger.hidden = !showTrigger;
     const picker = trigger.parentElement;
@@ -860,11 +886,10 @@ export class SebaLoginElement extends HTMLElementBase {
       return;
     }
     const choices = providerChoices(this.#providers());
-    const selectedIssuer =
-      root?.querySelector<HTMLElement>(".pname")?.dataset.issuer ?? choices[0]?.issuer ?? "";
+    const selectedIssuer = this.#selectedIssuer ?? choices[0]?.issuer ?? "";
     const options = choices.map((choice, index) => {
       const li = document.createElement("li");
-      li.id = `${menu.id || "seba-menu"}-opt-${index}`;
+      li.id = `seba-menu-opt-${index}`;
       li.setAttribute("role", "option");
       li.dataset.index = String(index);
       li.tabIndex = -1;
@@ -873,7 +898,7 @@ export class SebaLoginElement extends HTMLElementBase {
         `<img class="tile" alt="" width="48" height="48" decoding="async" src="${choice.iconUri}">` +
         `<span class="pnames"><span class="pname">${escapeHtml(choice.name)}</span>` +
         `<i class="pdomain">${escapeHtml(choice.domain)}</i></span>` +
-        `<span class="ok" aria-hidden="true">\u2713</span>`;
+        `<span class="ok" aria-hidden="true"><svg viewBox="0 0 24 24" width="1em" height="1em" focusable="false"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" fill="currentColor"/></svg></span>`;
       return li;
     });
     menu.replaceChildren(...options);
