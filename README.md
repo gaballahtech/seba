@@ -28,6 +28,41 @@
 - **Node.js login is not “magic”:** Node has no browser UI, so you must provide `openAuthorizationUrl` and use a **loopback** `redirectUri`; Node storage defaults to in-memory.
 - **Provider differences are real:** Solid-OIDC compliance varies. SEBA is strict by default and supports explicit per-issuer `tolerances` for known non-compliant cases (documented/tested cases in [Provider compatibility](#provider-compatibility)).
 
+## Stability tiers
+
+SEBA does **not** claim uniform production maturity across every entry point. The core protocol engine is the production-grade surface; binding/runtime integrations are **BETA**.
+
+| Entry | Stability | Coverage | Notes |
+|---|---|---|---|
+| `@gaballahtech/seba` (core) | **stable** (production-grade) | CI gate 85/80 (`src/core/**`); measured 85.03%/82.07% (2026-11-09) | OIDC/DPoP/session protocol logic; API frozen for 1.x |
+| `@gaballahtech/seba/react` | **BETA** (not production-grade) | see `coverage/` / `vitest.config.ts` | React bindings; API may change while BETA |
+| `@gaballahtech/seba` (web component `<seba-login>` / element integration) | **BETA** (not production-grade) | see `coverage/` / `vitest.config.ts` | Web Component/UI integration; API may change while BETA |
+| `@gaballahtech/seba/node` | **BETA** (not production-grade) | see `coverage/` / `vitest.config.ts` | Node runtime helpers/loopback login flow; API may change while BETA |
+| `@gaballahtech/seba/browser` | **BETA** (integration surface) | see `coverage/` / `vitest.config.ts` | Browser platform glue; uses stable core for auth operations |
+
+See [`docs/stability.md`](./docs/stability.md) for the definitions and CI gate policy.
+
+## Evidence status
+
+Conservative status for claims that were previously documentation-only or require external context. Each row links to code, tests, workflows, or ADRs.
+
+| Claim | Status | Evidence |
+|---|---|---|
+| Full cycle with solidweb.org | Manual (live) + automated (fixture). Live run is **not** unattended CI without secrets. | Automated fixture cycle/negatives: [`tests/e2e/e2e.test.ts`](./tests/e2e/e2e.test.ts) (fixture suites) and [`.github/workflows/e2e.yml`](./.github/workflows/e2e.yml). Live solidweb test is gated (`SEBA_E2E_SOLIDWEB=1`): [`tests/e2e/e2e.test.ts:146-154`](./tests/e2e/e2e.test.ts#L146-L154). See [Provider compatibility](#provider-compatibility). |
+| PKCE S256 only | Clarified: authorization PKCE uses **S256 exclusively**; ID-token/JWS signature algorithms are a separate allowlist (not PKCE). | PKCE/S256 implementation and ID-token algorithm allowlist: [`src/core/oidc.ts:2,26-27,33,53`](./src/core/oidc.ts#L2-L53). See [Security](#security). |
+| npm provenance | Configured in release workflow/package metadata; **activation requires repo admin/npm setup** (see HD-3). | [`.github/workflows/release.yml`](./.github/workflows/release.yml) (`npm publish --provenance --access public`, `id-token: write`, protected environment) and [`package.json` `publishConfig`](./package.json) (`provenance: true`). |
+| Provider compatibility can change | Discovery checks are runnable/scheduled (**discovery-only**; no login/token/resource fetch). Live login/fetch compatibility is **not** automated. | `npm run validate:discovery`, [`compat/providers.json`](./compat/providers.json), [`.github/workflows/provider-compat.yml`](./.github/workflows/provider-compat.yml) (weekly discovery-only; opens issue on failure), [Provider compatibility](#provider-compatibility). |
+| DPoP-bound tokens | Implemented; proofs are sent per request and ID-token `cnf.jkt` binding is enforced by default (relaxations require explicit acknowledgement). | DPoP implementation: [`src/core/dpop.ts`](./src/core/dpop.ts). Relaxations and guarantees: [SECURITY.md “Security relaxations”](./SECURITY.md#security-relaxations-tolerances). |
+
+### External items still required (maintainer/admin action — not agent work)
+
+These are **not** marked done by the v1.0 release draft. They must be completed and verified by repository administrators/maintainers (definitive list: [`docs/release-notes/v1.0.md`](./docs/release-notes/v1.0.md)):
+
+1. **HD-2 (secrets / live provider E2E):** Unattended solidweb.org (or other real-provider) live E2E requires credentials and a non-interactive flow (`SEBA_E2E_SOLIDWEB=1` gating exists). Manual/live verification remains documented.
+2. **HD-3 (GitHub admin):** Apply branch protection/rulesets and required checks (including coverage/e2e/publint/build/size as adopted), require PR review, require signed commits if policy is enforced, and configure the protected `npm-publish` environment with required reviewers and `NPM_TOKEN`/trusted publishing.
+3. **npm publish with provenance:** `.github/workflows/release.yml` is configured for `npm publish --provenance --access public` (`id-token: write`), but provenance/trusted publishing **activation and a real tagged publish** require admin/npm-side setup and a maintainer release action.
+4. **Provider live compatibility:** `.github/workflows/provider-compat.yml` performs **discovery-only** checks (no login/token/resource fetch). It does not prove live login/fetch compatibility.
+
 ## Why SEBA
 
 - **Small API:** `login()`, `restoreSession()`, `fetch()`, `logout()` (+ `session` / `getSession()`).
@@ -37,6 +72,8 @@
 
 ## Table of contents
 
+- [Stability tiers](#stability-tiers)
+- [Evidence status](#evidence-status)
 - [Install](#install)
 - [Quick start](#quick-start)
   - [Browser (Web Component, no build)](#browser-web-component-no-build)
@@ -47,6 +84,8 @@
 - [Configuration](#configuration)
 - [API](#api)
 - [Events](#events)
+- [Session & Authorization Lifecycle](#session--authorization-lifecycle)
+- [Token Refresh Timing](#token-refresh-timing)
 - [Pod data helpers](#pod-data-helpers)
 - [Security](#security)
 - [Provider compatibility](#provider-compatibility)
@@ -239,7 +278,41 @@ Clears local session state first, then attempts revocation if the provider adver
 | `session-changed` | Any session transition | `SessionChangeEvent` (`reason`, `session`, `previousSession`) |
 | `logout` | The session ends | `SessionInfo \| null` (previous session) |
 
-`session-changed` `reason` values: `"login" | "restore" | "logout" | "expired"`.
+`session-changed` `reason` values: `"login" | "restore" | "logout" | "expired" | "tolerance-applied"` (see [Token Refresh Timing](#token-refresh-timing) and security tolerance events).
+
+## Session & Authorization Lifecycle
+
+Browser authorization transactions (pending login state) are short-lived and stored locally while the user completes the redirect flow.
+
+- **Pending auth TTL:** **10 minutes**. Defined as `PENDING_AUTH_TTL_MS = 10 * 60 * 1000` and enforced on load: [`src/browser/storage.ts:32,120-125`](./src/browser/storage.ts#L32-L125).
+- **On expiry:** if a stored pending authorization is older than 10 minutes, SEBA removes it and throws `SebaAuthError` (“The pending login expired after 10 minutes. Start the login again from the application.”). The user must **restart login** from the app.
+- **Tab closed and reopened within TTL:** if the same browser profile still has the pending record and the callback URL contains valid `code` + `state` (and matches the configured redirect URI), callback completion can still proceed within the TTL window. If the record is missing/expired/mismatched, completion fails safely and login must restart.
+
+Cross-links: [Token Refresh Timing](#token-refresh-timing), [API](#api) (`login`/`completeLogin` patterns), [Security](#security).
+
+## Token Refresh Timing
+
+SEBA treats access-token expiry as a time window, not an exact instant, and supports one reactive retry on `401`.
+
+- **`EXPIRY_SKEW_MS = 30s`:** access tokens are considered near-expiry when `exp < now + 30_000 ms` (proactive refresh window). Source: [`src/core/session.ts:30`](./src/core/session.ts#L30).
+- **Proactive refresh:** when a refresh token is available and the access token is within the skew window (or expired for refreshable sessions), SEBA refreshes before/around protected use as needed.
+- **Reactive refresh on 401:** on a `401` from a protected resource, SEBA performs **one** access-token refresh/retry when appropriate (replayable request; refresh-capable session). Non-replayable streamed bodies are not resent.
+- **Expiry outcomes:** with a valid refresh token, refresh can restore access; without a usable refresh grant/token (or terminal refresh failure), the session becomes expired/cleared and the caller gets a session-expired error path.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Valid
+    Valid --> NearExpiry: exp < now + 30s (EXPIRY_SKEW_MS)
+    NearExpiry --> Refresh: proactive refresh (if refresh token)
+    Refresh --> Valid: refresh succeeds
+    Refresh --> Expired: refresh fails / no grant
+    Valid --> Unauthorized401: protected fetch returns 401
+    Unauthorized401 --> Retry: reactive refresh + one retry
+    Retry --> Valid: retry succeeds (200)
+    Retry --> Expired: retry fails / no refresh
+```
+
+Cross-links: [Session & Authorization Lifecycle](#session--authorization-lifecycle) (authorization callback/pending TTL is separate from token refresh), [Events](#events), [API](#api).
 
 ## Pod data helpers
 
@@ -268,16 +341,17 @@ See the full model and limitations in [`SECURITY.md`](./SECURITY.md) and design 
 
 ## Provider compatibility
 
-This table is intentionally conservative: **“Publicly tested”** means the full `login → fetch → restore → logout` cycle was executed against that provider.
+This table is intentionally conservative. “Automated (fixture)” means the full `login → fetch → refresh/restore → logout` protocol path and required negative cases run against the local conformance fixture server in CI (`npm run test:e2e`, [E2E workflow](./.github/workflows/e2e.yml)). Live provider claims require real credentials; **solidweb.org is not marked automated** without CI secrets.
 
-| Provider | Solid-OIDC compliance | Observed result (dated) | Publicly tested |
-|---|---|---|---|
-| Inrupt (ESS) — `https://login.inrupt.com` | Yes (advertises `webid`, DPoP, refresh tokens) | `https://login.inrupt.com/.well-known/openid-configuration` validates against SEBA discovery rules (2026-11-05). Interactive login/restore/fetch/logout were **not** executed (requires a real ESS account). | **No** — discovery only |
-| solidweb.org (NSS) — `https://solidweb.org` | Partial (no `webid` scope, no `revocation_endpoint` advertised) | **Full cycle** with a real account (2026-11-05): login (WebID-anchored via `solid:oidcIssuer`), DPoP-verified token, `seba.fetch()` read, `restoreSession()`, `logout()` (local clear only). Returned access token `exp` ≈ 600s. | **Yes** — full cycle |
-| solidcommunity.net (CSS-based) — `https://solidcommunity.net/` | **Not conformant** with Solid-OIDC (e.g. ID token `aud` missing `"solid"`, no `cnf.jkt`; also observed no refresh token in response despite advertising `offline_access`) | **Partial cycle** with a real account (2026-11-05): login + consent + DPoP Pod write/read verified. Uses explicit per-issuer `tolerances`. Reload can work within access-token lifetime via soft-persist (`auto`). | **No** — partial cycle only |
-| Other (CSS/Pivot/self-hosted) | Varies | Not executed | **No** |
+| Provider | Solid-OIDC compliance | Observed result (dated) | Test status | Discovery status |
+|---|---|---|---|---|
+| Local conformance fixture (loopback) — `tests/e2e/` | Conformant fixture (DPoP, PKCE S256, JWKS, refresh, nonce challenge hooks) | Full cycle + negative cases (expired-token 401→refresh retry, `use_dpop_nonce`, invalid ID-token signature, cross-origin redirect no credential forwarding). | **automated (fixture)** — [E2E workflow](./.github/workflows/e2e.yml) | n/a (local fixture) |
+| Inrupt (ESS) — `https://login.inrupt.com` | Yes (advertises `webid`, DPoP, refresh tokens) | Discovery validated against SEBA rules (2026-11-05). Interactive full cycle **not** executed (requires real ESS account). | **manual (documented)** — live automation not configured | **discovery-only** (scheduled) — [provider-compat workflow](./.github/workflows/provider-compat.yml) / [last runs](https://github.com/gaballahtech/seba/actions/workflows/provider-compat.yml) |
+| solidweb.org (NSS) — `https://solidweb.org` | Partial (no `webid` scope, no `revocation_endpoint` advertised) | Manual full cycle with a real account reported (2026-11-05): login, DPoP fetch, `restoreSession()`, `logout()` (local clear). Not continuously verified by unattended live CI. | automated (fixture); manual (live, gated by `SEBA_E2E_SOLIDWEB=1`) — [E2E workflow](./.github/workflows/e2e.yml) | **discovery-only** (scheduled) — [provider-compat workflow](./.github/workflows/provider-compat.yml) / [last runs](https://github.com/gaballahtech/seba/actions/workflows/provider-compat.yml) |
+| solidcommunity.net (CSS-based) — `https://solidcommunity.net/` | **Not conformant** (e.g. missing `"solid"` in `aud`, missing `cnf.jkt`; no refresh token observed despite `offline_access`) | Manual partial cycle reported (2026-11-05) with explicit per-issuer `tolerances`. | **manual (documented)** — requires real account + tolerances; not automated live | **discovery-only** (scheduled) — [provider-compat workflow](./.github/workflows/provider-compat.yml) / [last runs](https://github.com/gaballahtech/seba/actions/workflows/provider-compat.yml) |
+| Other (CSS/Pivot/self-hosted) | Varies | Not executed | **manual (documented)** — not automated | example target in [`compat/providers.json`](./compat/providers.json) (self-hosted discovery-only when `SEBA_COMPAT_INCLUDE_SELF_HOSTED=1`) |
 
-> Results can change with provider upgrades. To re-run discovery checks: `npm run build && npm run validate:discovery` (optional: `SEBA_TEST_WEBID=...`).
+> Results can change with provider upgrades. To re-run discovery checks: `npm run build && npm run validate:discovery` (discovery-only, no login/token/resource fetch; public targets from [`compat/providers.json`](./compat/providers.json)). Protocol/negative-case automation runs via `npm run test:e2e`. Weekly discovery-only runs: [provider-compat workflow](https://github.com/gaballahtech/seba/actions/workflows/provider-compat.yml).
 
 ## Project docs
 
@@ -300,6 +374,26 @@ npm run test:coverage   # vitest + v8 coverage
 ```
 
 CI (GitHub Actions): typecheck, tests, build, `publint` (required), plus informational `attw`/coverage steps. Dependency updates are managed via Dependabot.
+
+## Server-side rendering
+
+SEBA is **browser-first** (interactive login, callback handling, Web Crypto/DPoP keys, and browser storage). It does **not** support server-side session establishment or SSR-rendered authenticated flows (see [ADR 0005](./docs/adr/0005-ssr-stance.md), Option A).
+
+- **Does not work on the server:** `login()`, `restoreSession()`, `<seba-login>` rendering/interaction, IndexedDB-backed sessions, and browser-held DPoP signing as used by `seba.fetch()` in a server runtime.
+- **Recommended pattern:** keep auth client-only (a `"use client"` component uses `<seba-login>` / `Seba` in the browser). After the client has a session, proxy Pod requests through a server route only with an explicit, reviewed design (SEBA does not ship a server-held-token/DPoP proxy). Do **not** import browser-only SEBA flows into Server Components.
+
+A minimal Next.js-shaped example (client component + server proxy route pattern) is in [`examples/nextjs/`](./examples/nextjs/). Typecheck the example files: `npx tsc --noEmit -p examples/nextjs/tsconfig.json` (the example declares Next/React types as optional; install example deps to fully resolve framework types).
+
+## Bundle size
+
+Measured from built `dist/` entry files (packed bytes and gzip). The `browser` entry has an enforced gzip budget in CI (`npm run size`). See `scripts/size.mjs`.
+
+| Entry | File | Packed (B) | Gzipped (B) | Budget gzip (B) |
+|---|---|---:|---:|---:|
+| browser | `dist/browser/index.js` | 337 | 237 | 261 |
+| node | `dist/node/index.js` | 329 | 234 | — |
+| react | `dist/react/index.js` | 3483 | 1089 | — |
+| pod | `dist/pod.js` | 8963 | 2385 | — |
 
 ## Code graph
 
