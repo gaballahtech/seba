@@ -38,5 +38,14 @@ jobs:
           fi
           if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
             echo "NODE_AUTH_TOKEN not set; attempting publish via npm Trusted Publishing (OIDC) if configured."
+            # setup-node writes an .npmrc auth token placeholder; remove it so npm can use OIDC.
+            unset NODE_AUTH_TOKEN
+            npm config delete //registry.npmjs.org/:_authToken 2>/dev/null || true
+            if [ -n "${NPM_CONFIG_USERCONFIG:-}" ] && [ -f "$NPM_CONFIG_USERCONFIG" ]; then
+              sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG" || true
+            fi
+            if [ -f "$HOME/.npmrc" ]; then
+              sed -i '/_authToken/d' "$HOME/.npmrc" || true
+            fi
           fi
           npm publish --provenance --access public
