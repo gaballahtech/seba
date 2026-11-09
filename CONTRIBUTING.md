@@ -44,7 +44,10 @@ assertion to get green will not be merged.
 ## What a change has to respect
 
 - **No new runtime dependencies in the core.** `jose` and `idb` are the only runtime
-  dependencies; adding another needs a clear size and maintenance argument in the issue.
+  dependencies and are **pinned to exact versions** (no `^`) to reduce supply-chain
+  drift; upgrade them deliberately with lockfile review and tests. Adding another dependency
+  needs a clear size and maintenance argument in the issue (and a HUMAN_DECISIONS entry
+  where the process requires it).
 - **Keep the public surface small.** New exports are API commitments. Prefer a subpath
   export over growing the root entry point.
 - **Brand assets keep their PNG originals.** `assets/` holds the 512×512 PNG files; the
@@ -79,6 +82,22 @@ To keep maintenance sustainable and avoid low-quality/automated “slop” submi
 
 (Repo admins may also enforce branch/ruleset protections in GitHub settings; see GitHub’s rulesets/branch protection docs.)
 
+## Signed commits (policy)
+
+Contributors and maintainers should sign commits where feasible (`git commit -S` / SSH signing) so provenance and authorship are verifiable. Repository admins should enable **“Require signed commits”** in branch/ruleset protection for `main` once the team’s signing setup is in place.
+
+### Branch protection (recommended; apply in GitHub repo settings)
+
+Configure branch protection or a ruleset for `main` requiring at minimum:
+
+- Pull request before merging (no direct pushes except emergency admin bypass documented)
+- Required status checks: `test` (CI job name), plus any additional checks adopted (`e2e`, coverage/summary jobs as they become required)
+- Require branches to be up to date before merging (recommended)
+- Require signed commits (recommended, per policy above)
+- Restrict who can push to matching branches
+
+Include this block in PR bodies when changing workflows so reviewers/admins can apply matching settings.
+
 ## Releasing
 
-Maintainers only. See [`RELEASING.md`](./RELEASING.md) for the SemVer/stability policy, 1.0 path, and publishing checklist (version bump, changelog, checks/build/publint, `npm pack --dry-run`, publish/provenance).
+Maintainers only. See [`RELEASING.md`](./RELEASING.md) for the SemVer/stability policy, 1.0 path, and publishing checklist (version bump, changelog, checks/build/publint, `npm pack --dry-run`, publish/provenance). Tag-driven publishing is handled by `.github/workflows/release.yml` (requires the protected `npm-publish` environment and `NPM_TOKEN`/trusted publishing setup with provenance).

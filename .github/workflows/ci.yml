@@ -20,9 +20,20 @@ jobs:
       - run: npm run build
       - name: Lint package publishing/exports
         run: npx --yes publint@0.3.12
+      - name: Audit production dependencies (required)
+        run: npm audit --omit=dev --audit-level=high
       - name: Check exports/types (attw, best-effort)
         continue-on-error: true
         run: npm run build && npx --yes @arethetypeswrong/cli@0.18.2 --pack . --ignore-rules cjs-resolves-to-esm
-      - name: Coverage (informational)
-        continue-on-error: true
+      - name: Coverage (required thresholds)
         run: npm run test:coverage
+      - name: Coverage summary (PR comment)
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body = '## Coverage\nCoverage job completed. See the `Coverage (required thresholds)` step for details and `coverage/README.md` for the baseline/target.';
+            try { if (fs.existsSync('coverage/lcov.info')) body += '\n\n`coverage/lcov.info` was generated.'; } catch {}
+            github.rest.issues.createComment({ issue_number: context.issue.number, owner: context.repo.owner, repo: context.repo.repo, body });
+
