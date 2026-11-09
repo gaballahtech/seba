@@ -181,7 +181,6 @@ describe("SebaClient config/edge branches (T5b, covers src/core/client.ts)", () 
     // covers src/core/client.ts:359-365 branch (#completeLogin client/redirect mismatch)
     let cleared = 0;
     const pending: PendingAuthorization = {
-      version: 1,
       state: "st",
       nonce: "n",
       codeVerifier: "v".repeat(43),
@@ -189,7 +188,6 @@ describe("SebaClient config/edge branches (T5b, covers src/core/client.ts)", () 
       clientId: "https://other.example/id.jsonld",
       redirectUri: REDIRECT_URI,
       createdAt: Date.now(),
-      expiresAt: Date.now() + 60_000,
     };
     const client = new SebaClient(
       { clientId: CLIENT_ID, redirectUri: REDIRECT_URI },

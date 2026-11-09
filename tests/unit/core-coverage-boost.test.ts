@@ -130,7 +130,7 @@ describe("Core config/storage small branches (covers src/core/client.ts, src/cor
     // covers src/core/storage.ts:53 (peek)
     const store = memoryPendingAuthStore();
     expect(store.peek()).toBeNull();
-    await store.save({ version: 1, state: "s", nonce: "n", codeVerifier: "v".repeat(43), issuer: ISSUER, clientId: CLIENT_ID, redirectUri: REDIRECT_URI, createdAt: 1, expiresAt: 2 });
+    await store.save({ state: "s", nonce: "n", codeVerifier: "v".repeat(43), issuer: ISSUER, clientId: CLIENT_ID, redirectUri: REDIRECT_URI, createdAt: 1 });
     expect(store.peek()?.state).toBe("s");
     await store.clear();
     expect(store.peek()).toBeNull();
