@@ -112,3 +112,12 @@ The repository should enforce the following (apply in GitHub repo settings / rul
 - **Protected environment `npm-publish`:** used by `.github/workflows/release.yml` for tag `v*` publishes. Configure required reviewers and `NPM_TOKEN` (or npm trusted publishing) with least privilege; restrict who can deploy. The workflow uses `id-token: write` for provenance (`npm publish --provenance --access public`).
 
 Status: **DOCUMENTED — awaiting admin**.
+
+## External items still required (maintainer/admin action — not agent work)
+
+These are **not** marked done by the v1.0 release draft. They must be completed and verified by repository administrators/maintainers (definitive list: [`docs/release-notes/v1.0.md`](./docs/release-notes/v1.0.md)):
+
+1. **HD-2 (secrets / live provider E2E):** Unattended solidweb.org (or other real-provider) live E2E requires credentials and a non-interactive flow (`SEBA_E2E_SOLIDWEB=1` gating exists). Manual/live verification remains documented.
+2. **HD-3 (GitHub admin):** Apply branch protection/rulesets and required checks (including coverage/e2e/publint/build/size as adopted), require PR review, require signed commits if policy is enforced, and configure the protected `npm-publish` environment with required reviewers and `NPM_TOKEN`/trusted publishing.
+3. **npm publish with provenance:** `.github/workflows/release.yml` is configured for `npm publish --provenance --access public` (`id-token: write`), but provenance/trusted publishing **activation and a real tagged publish** require admin/npm-side setup and a maintainer release action.
+4. **Provider live compatibility:** `.github/workflows/provider-compat.yml` performs **discovery-only** checks (no login/token/resource fetch). It does not prove live login/fetch compatibility.

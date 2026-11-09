@@ -8,7 +8,7 @@ Applies to: `@gaballahtech/seba` (core).
 
 - **API:** Frozen for the 1.x line. Breaking changes require a major version and migration notes.
 - **Security review:** Core protocol logic (OIDC, PKCE, DPoP, session/restore/refresh, redirect safety) is treated as security-sensitive and changes require focused review.
-- **Coverage gate:** `src/core/**` is gated in CI at **≥85% lines / ≥80% branches** (`vitest.config.ts`, `npm run test:coverage`). The gate must stay green; thresholds are not lowered without an explicit human-decision entry and evidence.
+- **Coverage gate:** `src/core/**` is gated in CI at **≥85% lines / ≥80% branches** (`vitest.config.ts`, `npm run test:coverage`; measured 85.03%/82.07%, 2026-11-09). The gate must stay green; thresholds are not lowered without an explicit human-decision entry and evidence.
 
 ## Beta
 

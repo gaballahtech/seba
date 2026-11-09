@@ -34,7 +34,7 @@ SEBA does **not** claim uniform production maturity across every entry point. Th
 
 | Entry | Stability | Coverage | Notes |
 |---|---|---|---|
-| `@gaballahtech/seba` (core) | **stable** (production-grade) | core gate 85/80 (`src/core/**`) | OIDC/DPoP/session protocol logic; API frozen for 1.x |
+| `@gaballahtech/seba` (core) | **stable** (production-grade) | CI gate 85/80 (`src/core/**`); measured 85.03%/82.07% (2026-11-09) | OIDC/DPoP/session protocol logic; API frozen for 1.x |
 | `@gaballahtech/seba/react` | **BETA** (not production-grade) | see `coverage/` / `vitest.config.ts` | React bindings; API may change while BETA |
 | `@gaballahtech/seba` (web component `<seba-login>` / element integration) | **BETA** (not production-grade) | see `coverage/` / `vitest.config.ts` | Web Component/UI integration; API may change while BETA |
 | `@gaballahtech/seba/node` | **BETA** (not production-grade) | see `coverage/` / `vitest.config.ts` | Node runtime helpers/loopback login flow; API may change while BETA |
@@ -53,6 +53,15 @@ Conservative status for claims that were previously documentation-only or requir
 | npm provenance | Configured in release workflow/package metadata; **activation requires repo admin/npm setup** (see HD-3). | [`.github/workflows/release.yml`](./.github/workflows/release.yml) (`npm publish --provenance --access public`, `id-token: write`, protected environment) and [`package.json` `publishConfig`](./package.json) (`provenance: true`). |
 | Provider compatibility can change | Discovery checks are runnable/scheduled (**discovery-only**; no login/token/resource fetch). Live login/fetch compatibility is **not** automated. | `npm run validate:discovery`, [`compat/providers.json`](./compat/providers.json), [`.github/workflows/provider-compat.yml`](./.github/workflows/provider-compat.yml) (weekly discovery-only; opens issue on failure), [Provider compatibility](#provider-compatibility). |
 | DPoP-bound tokens | Implemented; proofs are sent per request and ID-token `cnf.jkt` binding is enforced by default (relaxations require explicit acknowledgement). | DPoP implementation: [`src/core/dpop.ts`](./src/core/dpop.ts). Relaxations and guarantees: [SECURITY.md “Security relaxations”](./SECURITY.md#security-relaxations-tolerances). |
+
+### External items still required (maintainer/admin action — not agent work)
+
+These are **not** marked done by the v1.0 release draft. They must be completed and verified by repository administrators/maintainers (definitive list: [`docs/release-notes/v1.0.md`](./docs/release-notes/v1.0.md)):
+
+1. **HD-2 (secrets / live provider E2E):** Unattended solidweb.org (or other real-provider) live E2E requires credentials and a non-interactive flow (`SEBA_E2E_SOLIDWEB=1` gating exists). Manual/live verification remains documented.
+2. **HD-3 (GitHub admin):** Apply branch protection/rulesets and required checks (including coverage/e2e/publint/build/size as adopted), require PR review, require signed commits if policy is enforced, and configure the protected `npm-publish` environment with required reviewers and `NPM_TOKEN`/trusted publishing.
+3. **npm publish with provenance:** `.github/workflows/release.yml` is configured for `npm publish --provenance --access public` (`id-token: write`), but provenance/trusted publishing **activation and a real tagged publish** require admin/npm-side setup and a maintainer release action.
+4. **Provider live compatibility:** `.github/workflows/provider-compat.yml` performs **discovery-only** checks (no login/token/resource fetch). It does not prove live login/fetch compatibility.
 
 ## Why SEBA
 
