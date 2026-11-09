@@ -70,6 +70,10 @@
     "SECURITY.md",
     "RELEASING.md"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "engines": {
     "node": ">=20"
   },
@@ -92,11 +96,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "check:exports": "npm run build && npx --yes publint@0.3.12"
+    "check:exports": "npm run build && npx --yes publint@0.3.12",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
-    "idb": "^8.0.3",
-    "jose": "^6.1.0"
+    "idb": "8.0.4",
+    "jose": "6.2.15"
   },
   "peerDependencies": {
     "react": ">=18"
