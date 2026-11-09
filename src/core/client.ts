@@ -419,44 +419,49 @@ export class SebaClient {
       );
     }
 
-    const code = parseAuthorizationResponse(callbackUrl, pending);
-    const configuration = await discoverProvider(pending.issuer, this.#platform.fetch);
-    applyComplianceTolerances(configuration, this.#tolerances(configuration.issuer));
-    const material = await createDPoPKey();
-    const result = await exchangeAuthorizationCode({
-      configuration,
-      clientId: this.#config.clientId,
-      redirectUri: this.#config.redirectUri,
-      code,
-      codeVerifier: pending.codeVerifier,
-      nonce: pending.nonce,
-      signer: material.signer,
-      fetchImpl: this.#platform.fetch,
-      maxDpopNonceRetries: this.#config.maxDpopNonceRetries,
-      ...(pending.webId === undefined ? {} : { expectedWebId: pending.webId }),
-    });
+    // Consume the pending transaction on every terminal path (success or failure) so a
+    // failed completion never leaves stale PKCE/state material behind for retry or reuse.
+    try {
+      const code = parseAuthorizationResponse(callbackUrl, pending);
+      const configuration = await discoverProvider(pending.issuer, this.#platform.fetch);
+      applyComplianceTolerances(configuration, this.#tolerances(configuration.issuer));
+      const material = await createDPoPKey();
+      const result = await exchangeAuthorizationCode({
+        configuration,
+        clientId: this.#config.clientId,
+        redirectUri: this.#config.redirectUri,
+        code,
+        codeVerifier: pending.codeVerifier,
+        nonce: pending.nonce,
+        signer: material.signer,
+        fetchImpl: this.#platform.fetch,
+        maxDpopNonceRetries: this.#config.maxDpopNonceRetries,
+        ...(pending.webId === undefined ? {} : { expectedWebId: pending.webId }),
+      });
 
-    this.#debug(
-      `token response: scope=${result.tokens.scope ?? "(not advertised)"}, ` +
-        `refresh_token=${result.tokens.refreshToken === undefined ? "ABSENT" : "present"}, ` +
-        `expires_in=${result.tokens.expiresIn ?? "(not advertised)"}`,
-    );
+      this.#debug(
+        `token response: scope=${result.tokens.scope ?? "(not advertised)"}, ` +
+          `refresh_token=${result.tokens.refreshToken === undefined ? "ABSENT" : "present"}, ` +
+          `expires_in=${result.tokens.expiresIn ?? "(not advertised)"}`,
+      );
 
-    await this.#sessions.adopt({
-      tokens: result.tokens,
-      identity: result.identity,
-      signer: material.signer,
-      key: material.persisted,
-      configuration,
-    });
-    await this.#platform.pendingAuth.clear();
-    this.#platform.clearCallback?.();
-    this.#debug("authenticated session established");
-    const session = this.#sessions.toPublicSession();
-    if (session === null) {
-      throw new SebaAuthError("The session was created but could not be read back.");
+      await this.#sessions.adopt({
+        tokens: result.tokens,
+        identity: result.identity,
+        signer: material.signer,
+        key: material.persisted,
+        configuration,
+      });
+      this.#platform.clearCallback?.();
+      this.#debug("authenticated session established");
+      const session = this.#sessions.toPublicSession();
+      if (session === null) {
+        throw new SebaAuthError("The session was created but could not be read back.");
+      }
+      return session;
+    } finally {
+      await this.#platform.pendingAuth.clear();
     }
-    return session;
   }
 
   #callbackUrl(): string | null {
@@ -544,6 +549,19 @@ function resolveConfig(config: SebaConfig, platform: Platform): ResolvedConfig {
       );
     }
     persistSessionWithoutRefreshToken = config.persistSessionWithoutRefreshToken;
+  }
+
+  const toleranceEnabled =
+    config.allowNonCompliantAudience === true ||
+    config.allowNonCompliantCnf === true ||
+    Object.values(config.tolerances ?? {}).some(
+      (t) => t.allowNonCompliantAudience === true || t.allowNonCompliantCnf === true,
+    );
+  if (toleranceEnabled && config.acknowledgeSecurityRelaxations !== true) {
+    throw new SebaConfigError(
+      "Enabling a security relaxation (allowNonCompliantAudience/allowNonCompliantCnf or tolerances) requires acknowledgeSecurityRelaxations: true. " +
+        "See SECURITY.md for risks and alternatives.",
+    );
   }
 
   return {
