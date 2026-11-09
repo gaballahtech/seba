@@ -1,5 +1,4 @@
-import { describe, expect, it } from "vitest";
-import { decodeJwt, decodeProtectedHeader , type JWK } from "jose"; // (unused alias note)
+import { describe, expect, it } from "vitest";import { decodeJwt } from "jose";
 import { SebaClient } from "../../src/core/client.js";
 import { SebaSessionExpiredError } from "../../src/core/errors.js";
 import { createDPoPKey } from "../../src/core/dpop.js";
