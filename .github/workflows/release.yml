@@ -26,12 +26,17 @@ jobs:
       - run: npm run build
       - name: Publish to npm (idempotent)
         env:
+          # Supports either an npm automation token (NPM_TOKEN, scoped to npm-publish env or repo)
+          # or npm Trusted Publishing (OIDC) configured on npmjs.com for this repo/workflow.
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION_TAG: ${{ github.ref_name }}
         run: |
           VERSION="${VERSION_TAG#v}"
           if npm view "@gaballahtech/seba@$VERSION" version >/dev/null 2>&1; then
             echo "@gaballahtech/seba@$VERSION is already published on npm; skipping publish."
-          else
-            npm publish --provenance --access public
+            exit 0
           fi
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "NODE_AUTH_TOKEN not set; attempting publish via npm Trusted Publishing (OIDC) if configured."
+          fi
+          npm publish --provenance --access public
