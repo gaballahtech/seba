@@ -11,7 +11,7 @@
  */
 
 import { loadDPoPKey } from "./dpop.js";
-import { SebaAuthError, SebaConfigError, SebaNetworkError, SebaSessionExpiredError } from "./errors.js";
+import { SebaAuthError, SebaConfigError, SebaError, SebaNetworkError, SebaSessionExpiredError } from "./errors.js";
 import { httpFetch } from "./http.js";
 import { parseTokenSet, requestTokenResponse, validateIdToken, type Identity } from "./oidc.js";
 import type {
@@ -200,7 +200,20 @@ export class SessionManager {
    * @throws {@link SebaAuthError} for other provider rejections (local state kept).
    */
   async restore(): Promise<Session | null> {
-    const record = await this.#options.storage.load();
+    let record: PersistedSession | null;
+    try {
+      record = await this.#options.storage.load();
+    } catch (error) {
+      if (error instanceof SebaError) {
+        throw error;
+      }
+      await this.clearLocal().catch(() => {});
+      this.#signalExpired();
+      throw new SebaSessionExpiredError("Session storage is unavailable; the session could not be restored.", {
+        cause: error,
+        stage: "storage_unavailable",
+      });
+    }
     if (record === null) {
       return null;
     }
