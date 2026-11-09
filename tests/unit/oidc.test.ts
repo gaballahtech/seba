@@ -532,3 +532,47 @@ describe("exchangeAuthorizationCode", () => {
     await expect(exchange(fetchImpl)).rejects.toThrow(/requires DPoP/);
   });
 });
+
+import { SebaClient } from "../../src/core/client.js";
+import { SebaConfigError } from "../../src/core/errors.js";
+import type { Platform, SessionStorageAdapter } from "../../src/types.js";
+
+function tolerantPlatform(): Platform {
+  const mem: SessionStorageAdapter = { async save(){}, async load(){ return null; }, async clear(){} };
+  return {
+    kind: "browser",
+    defaultStorage: "memory",
+    fetch: async () => new Response("", { status: 500 }),
+    currentUrl: () => null,
+    pendingAuth: { async save(){}, async load(){ return null; }, async clear(){} },
+    createStorage: () => mem,
+    beginInteractiveLogin: async () => { throw new Error("no"); },
+  };
+}
+
+describe("tolerance acknowledgement safeguard (Task 8)", () => {
+  it("throws SebaConfigError when a tolerance is enabled without acknowledgeSecurityRelaxations", () => {
+    expect(
+      () =>
+        new SebaClient(
+          { clientId: "https://app.example/id", redirectUri: "https://app.example/cb", allowNonCompliantAudience: true },
+          tolerantPlatform(),
+        ),
+    ).toThrow(SebaConfigError);
+  });
+
+  it("accepts a tolerance when acknowledgeSecurityRelaxations is true", () => {
+    expect(
+      () =>
+        new SebaClient(
+          {
+            clientId: "https://app.example/id",
+            redirectUri: "https://app.example/cb",
+            allowNonCompliantAudience: true,
+            acknowledgeSecurityRelaxations: true,
+          },
+          tolerantPlatform(),
+        ),
+    ).not.toThrow();
+  });
+});

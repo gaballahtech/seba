@@ -116,6 +116,13 @@ export interface SebaConfig {
   tolerances?: Record<string, ComplianceTolerances>;
 
   /**
+   * Explicit acknowledgement required when any security relaxation is enabled
+   * (`allowNonCompliantAudience`, `allowNonCompliantCnf`, or any `tolerances` entry).
+   * Omitting this flag when a tolerance is configured throws `SebaConfigError`.
+   */
+  acknowledgeSecurityRelaxations?: boolean;
+
+  /**
    * How many `use_dpop_nonce` challenges the token endpoint may issue before SEBA
    * gives up. Each retry signs a brand-new DPoP proof with the fresh nonce. The
    * resource-fetch path applies the same count. Providers that rotate nonces on
@@ -188,7 +195,7 @@ export interface Session {
 }
 
 /** Why a session changed. */
-export type SessionChangeReason = "login" | "logout" | "restore" | "expired";
+export type SessionChangeReason = "login" | "logout" | "restore" | "expired" | "tolerance-applied";
 
 /**
  * Emitted after every session transition.
