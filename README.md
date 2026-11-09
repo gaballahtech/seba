@@ -302,6 +302,15 @@ npm run test:coverage   # vitest + v8 coverage
 
 CI (GitHub Actions): typecheck, tests, build, `publint` (required), plus informational `attw`/coverage steps. Dependency updates are managed via Dependabot.
 
+## Server-side rendering
+
+SEBA is **browser-first** (interactive login, callback handling, Web Crypto/DPoP keys, and browser storage). It does **not** support server-side session establishment or SSR-rendered authenticated flows (see [ADR 0005](./docs/adr/0005-ssr-stance.md), Option A).
+
+- **Does not work on the server:** `login()`, `restoreSession()`, `<seba-login>` rendering/interaction, IndexedDB-backed sessions, and browser-held DPoP signing as used by `seba.fetch()` in a server runtime.
+- **Recommended pattern:** keep auth client-only (a `"use client"` component uses `<seba-login>` / `Seba` in the browser). After the client has a session, proxy Pod requests through a server route only with an explicit, reviewed design (SEBA does not ship a server-held-token/DPoP proxy). Do **not** import browser-only SEBA flows into Server Components.
+
+A minimal Next.js-shaped example (client component + server proxy route pattern) is in [`examples/nextjs/`](./examples/nextjs/). Typecheck the example files: `npx tsc --noEmit -p examples/nextjs/tsconfig.json` (the example declares Next/React types as optional; install example deps to fully resolve framework types).
+
 ## Bundle size
 
 Measured from built `dist/` entry files (packed bytes and gzip). The `browser` entry has an enforced gzip budget in CI (`npm run size`). See `scripts/size.mjs`.
