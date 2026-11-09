@@ -101,3 +101,14 @@ Include this block in PR bodies when changing workflows so reviewers/admins can 
 ## Releasing
 
 Maintainers only. See [`RELEASING.md`](./RELEASING.md) for the SemVer/stability policy, 1.0 path, and publishing checklist (version bump, changelog, checks/build/publint, `npm pack --dry-run`, publish/provenance). Tag-driven publishing is handled by `.github/workflows/release.yml` (requires the protected `npm-publish` environment and `NPM_TOKEN`/trusted publishing setup with provenance).
+
+## Branch protection & release environment (admin, HD-3 / Task 1.3, T19)
+
+The repository should enforce the following (apply in GitHub repo settings / rulesets; **not** automated from this environment):
+
+- **Required status checks (merge):** `typecheck`, `test`, `coverage`, `e2e` (where applicable), `publint` / export checks, `build`, `size` (once adopted). Do not merge on red checks.
+- **Required pull request review:** at least 1 approving review.
+- **Signed commits:** required for the protected branch (per policy).
+- **Protected environment `npm-publish`:** used by `.github/workflows/release.yml` for tag `v*` publishes. Configure required reviewers and `NPM_TOKEN` (or npm trusted publishing) with least privilege; restrict who can deploy. The workflow uses `id-token: write` for provenance (`npm publish --provenance --access public`).
+
+Status: **DOCUMENTED — awaiting admin**.
