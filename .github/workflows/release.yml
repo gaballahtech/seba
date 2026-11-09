@@ -24,6 +24,14 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - run: npm publish --provenance --access public
+      - name: Publish to npm (idempotent)
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION_TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="${VERSION_TAG#v}"
+          if npm view "@gaballahtech/seba@$VERSION" version >/dev/null 2>&1; then
+            echo "@gaballahtech/seba@$VERSION is already published on npm; skipping publish."
+          else
+            npm publish --provenance --access public
+          fi
