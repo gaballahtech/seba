@@ -61,7 +61,7 @@ assertion to get green will not be merged.
 - **Browser and Node paths stay separate.** Platform code is loaded dynamically so a
   browser bundle never contains the Node HTTP server.
 - **Tests come with behaviour.** New behaviour needs a unit test; bug fixes need a test
-  that fails before the fix.
+  that fails before the fix. When adding features, **core requires tests**; **beta modules require at minimum smoke tests** (see `docs/stability.md`).
 
 ## Commit and pull request style
 

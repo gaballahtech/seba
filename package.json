@@ -21,6 +21,14 @@
     "./dist/node/index.js": false,
     "./dist/node/platform.js": false
   },
+  "stability": {
+    "@gaballahtech/seba": "stable",
+    "@gaballahtech/seba/browser": "beta",
+    "@gaballahtech/seba/node": "beta",
+    "@gaballahtech/seba/react": "beta",
+    "@gaballahtech/seba (web component <seba-login>)": "beta",
+    "@gaballahtech/seba/pod": "beta"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

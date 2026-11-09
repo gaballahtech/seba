@@ -28,6 +28,20 @@
 - **Node.js login is not “magic”:** Node has no browser UI, so you must provide `openAuthorizationUrl` and use a **loopback** `redirectUri`; Node storage defaults to in-memory.
 - **Provider differences are real:** Solid-OIDC compliance varies. SEBA is strict by default and supports explicit per-issuer `tolerances` for known non-compliant cases (documented/tested cases in [Provider compatibility](#provider-compatibility)).
 
+## Stability tiers
+
+SEBA does **not** claim uniform production maturity across every entry point. The core protocol engine is the production-grade surface; binding/runtime integrations are **BETA**.
+
+| Entry | Stability | Coverage | Notes |
+|---|---|---|---|
+| `@gaballahtech/seba` (core) | **stable** (production-grade) | core gate 85/80 (`src/core/**`) | OIDC/DPoP/session protocol logic; API frozen for 1.x |
+| `@gaballahtech/seba/react` | **BETA** (not production-grade) | see `coverage/` / `vitest.config.ts` | React bindings; API may change while BETA |
+| `@gaballahtech/seba` (web component `<seba-login>` / element integration) | **BETA** (not production-grade) | see `coverage/` / `vitest.config.ts` | Web Component/UI integration; API may change while BETA |
+| `@gaballahtech/seba/node` | **BETA** (not production-grade) | see `coverage/` / `vitest.config.ts` | Node runtime helpers/loopback login flow; API may change while BETA |
+| `@gaballahtech/seba/browser` | **BETA** (integration surface) | see `coverage/` / `vitest.config.ts` | Browser platform glue; uses stable core for auth operations |
+
+See [`docs/stability.md`](./docs/stability.md) for the definitions and CI gate policy.
+
 ## Why SEBA
 
 - **Small API:** `login()`, `restoreSession()`, `fetch()`, `logout()` (+ `session` / `getSession()`).
@@ -37,6 +51,7 @@
 
 ## Table of contents
 
+- [Stability tiers](#stability-tiers)
 - [Install](#install)
 - [Quick start](#quick-start)
   - [Browser (Web Component, no build)](#browser-web-component-no-build)
