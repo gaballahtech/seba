@@ -36,8 +36,8 @@ async function setup() {
   };
   const configuration: OIDCConfiguration = {
     issuer: ISSUER, authorizationEndpoint: ISSUER + "/a", tokenEndpoint: ISSUER + "/token",
-    jwksUri: ISSUER + "/jwks", idTokenSigningAlgValuesSupported: ["ES256"],
-    tokenEndpointAuthMethodsSupported: ["none"], scopesSupported: ["openid", "webid", "offline_access"],
+    jwksUri: ISSUER + "/jwks",
+    scopesSupported: ["openid", "webid", "offline_access"],
     allowNonCompliantCnf: true,
   };
   const manager = new SessionManager({
