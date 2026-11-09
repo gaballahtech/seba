@@ -1,0 +1,31 @@
+{
+  "description": "Discovery-only compatibility targets for SEBA. No login, no token exchange, no resource fetch.",
+  "providers": [
+    {
+      "id": "solidweb",
+      "name": "solidweb.org (NSS)",
+      "issuer": "https://solidweb.org/",
+      "type": "public"
+    },
+    {
+      "id": "inrupt",
+      "name": "Inrupt (ESS) login.inrupt.com",
+      "issuer": "https://login.inrupt.com",
+      "type": "public"
+    },
+    {
+      "id": "solidcommunity",
+      "name": "solidcommunity.net (CSS-based)",
+      "issuer": "https://solidcommunity.net/",
+      "type": "public"
+    },
+    {
+      "id": "css-self-hosted-example",
+      "name": "Self-hosted Community Solid Server (example)",
+      "issuer": "http://localhost:3000/",
+      "type": "self-hosted-example",
+      "skipByDefault": true,
+      "note": "Example only; run against a local CSS instance with SEBA_COMPAT_INCLUDE_SELF_HOSTED=1"
+    }
+  ]
+}
