@@ -42,6 +42,18 @@ SEBA does **not** claim uniform production maturity across every entry point. Th
 
 See [`docs/stability.md`](./docs/stability.md) for the definitions and CI gate policy.
 
+## Evidence status
+
+Conservative status for claims that were previously documentation-only or require external context. Each row links to code, tests, workflows, or ADRs.
+
+| Claim | Status | Evidence |
+|---|---|---|
+| Full cycle with solidweb.org | Manual (live) + automated (fixture). Live run is **not** unattended CI without secrets. | Automated fixture cycle/negatives: [`tests/e2e/e2e.test.ts`](./tests/e2e/e2e.test.ts) (fixture suites) and [`.github/workflows/e2e.yml`](./.github/workflows/e2e.yml). Live solidweb test is gated (`SEBA_E2E_SOLIDWEB=1`): [`tests/e2e/e2e.test.ts:146-154`](./tests/e2e/e2e.test.ts#L146-L154). See [Provider compatibility](#provider-compatibility). |
+| PKCE S256 only | Clarified: authorization PKCE uses **S256 exclusively**; ID-token/JWS signature algorithms are a separate allowlist (not PKCE). | PKCE/S256 implementation and ID-token algorithm allowlist: [`src/core/oidc.ts:2,26-27,33,53`](./src/core/oidc.ts#L2-L53). See [Security](#security). |
+| npm provenance | Configured in release workflow/package metadata; **activation requires repo admin/npm setup** (see HD-3). | [`.github/workflows/release.yml`](./.github/workflows/release.yml) (`npm publish --provenance --access public`, `id-token: write`, protected environment) and [`package.json` `publishConfig`](./package.json) (`provenance: true`). |
+| Provider compatibility can change | Discovery checks are runnable; unattended live compatibility automation is **manual/limited** (no `provider-compat.yml` added in this release). | `npm run validate:discovery` / [Provider compatibility](#provider-compatibility). Stage 5 workflow deferred — **DEFERRED to v1.1** (no false live-automation claim). |
+| DPoP-bound tokens | Implemented; proofs are sent per request and ID-token `cnf.jkt` binding is enforced by default (relaxations require explicit acknowledgement). | DPoP implementation: [`src/core/dpop.ts`](./src/core/dpop.ts). Relaxations and guarantees: [SECURITY.md “Security relaxations”](./SECURITY.md#security-relaxations-tolerances). |
+
 ## Why SEBA
 
 - **Small API:** `login()`, `restoreSession()`, `fetch()`, `logout()` (+ `session` / `getSession()`).
@@ -52,6 +64,7 @@ See [`docs/stability.md`](./docs/stability.md) for the definitions and CI gate p
 ## Table of contents
 
 - [Stability tiers](#stability-tiers)
+- [Evidence status](#evidence-status)
 - [Install](#install)
 - [Quick start](#quick-start)
   - [Browser (Web Component, no build)](#browser-web-component-no-build)
@@ -62,6 +75,8 @@ See [`docs/stability.md`](./docs/stability.md) for the definitions and CI gate p
 - [Configuration](#configuration)
 - [API](#api)
 - [Events](#events)
+- [Session & Authorization Lifecycle](#session--authorization-lifecycle)
+- [Token Refresh Timing](#token-refresh-timing)
 - [Pod data helpers](#pod-data-helpers)
 - [Security](#security)
 - [Provider compatibility](#provider-compatibility)
@@ -254,7 +269,41 @@ Clears local session state first, then attempts revocation if the provider adver
 | `session-changed` | Any session transition | `SessionChangeEvent` (`reason`, `session`, `previousSession`) |
 | `logout` | The session ends | `SessionInfo \| null` (previous session) |
 
-`session-changed` `reason` values: `"login" | "restore" | "logout" | "expired"`.
+`session-changed` `reason` values: `"login" | "restore" | "logout" | "expired" | "tolerance-applied"` (see [Token Refresh Timing](#token-refresh-timing) and security tolerance events).
+
+## Session & Authorization Lifecycle
+
+Browser authorization transactions (pending login state) are short-lived and stored locally while the user completes the redirect flow.
+
+- **Pending auth TTL:** **10 minutes**. Defined as `PENDING_AUTH_TTL_MS = 10 * 60 * 1000` and enforced on load: [`src/browser/storage.ts:32,120-125`](./src/browser/storage.ts#L32-L125).
+- **On expiry:** if a stored pending authorization is older than 10 minutes, SEBA removes it and throws `SebaAuthError` (“The pending login expired after 10 minutes. Start the login again from the application.”). The user must **restart login** from the app.
+- **Tab closed and reopened within TTL:** if the same browser profile still has the pending record and the callback URL contains valid `code` + `state` (and matches the configured redirect URI), callback completion can still proceed within the TTL window. If the record is missing/expired/mismatched, completion fails safely and login must restart.
+
+Cross-links: [Token Refresh Timing](#token-refresh-timing), [API](#api) (`login`/`completeLogin` patterns), [Security](#security).
+
+## Token Refresh Timing
+
+SEBA treats access-token expiry as a time window, not an exact instant, and supports one reactive retry on `401`.
+
+- **`EXPIRY_SKEW_MS = 30s`:** access tokens are considered near-expiry when `exp < now + 30_000 ms` (proactive refresh window). Source: [`src/core/session.ts:30`](./src/core/session.ts#L30).
+- **Proactive refresh:** when a refresh token is available and the access token is within the skew window (or expired for refreshable sessions), SEBA refreshes before/around protected use as needed.
+- **Reactive refresh on 401:** on a `401` from a protected resource, SEBA performs **one** access-token refresh/retry when appropriate (replayable request; refresh-capable session). Non-replayable streamed bodies are not resent.
+- **Expiry outcomes:** with a valid refresh token, refresh can restore access; without a usable refresh grant/token (or terminal refresh failure), the session becomes expired/cleared and the caller gets a session-expired error path.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Valid
+    Valid --> NearExpiry: exp < now + 30s (EXPIRY_SKEW_MS)
+    NearExpiry --> Refresh: proactive refresh (if refresh token)
+    Refresh --> Valid: refresh succeeds
+    Refresh --> Expired: refresh fails / no grant
+    Valid --> Unauthorized401: protected fetch returns 401
+    Unauthorized401 --> Retry: reactive refresh + one retry
+    Retry --> Valid: retry succeeds (200)
+    Retry --> Expired: retry fails / no refresh
+```
+
+Cross-links: [Session & Authorization Lifecycle](#session--authorization-lifecycle) (authorization callback/pending TTL is separate from token refresh), [Events](#events), [API](#api).
 
 ## Pod data helpers
 
