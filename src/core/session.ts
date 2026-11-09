@@ -87,6 +87,8 @@ export class SessionManager {
   #state: SessionState | null = null;
   #refreshing: Promise<void> | null = null;
   #expiredNotified = false;
+  /** Deduplicate tolerance-applied events per (issuer, rule) per session lifetime (T8b). */
+  #firedTolerances = new Set<string>();
 
   constructor(options: SessionManagerOptions) {
     this.#options = options;
@@ -136,6 +138,7 @@ export class SessionManager {
     key: PersistedKey;
     configuration: OIDCConfiguration;
   }): Promise<SessionState> {
+    this.#firedTolerances.clear();
     const state: SessionState = {
       tokens: input.tokens,
       identity: input.identity,
@@ -423,6 +426,9 @@ export class SessionManager {
         requireDpopBinding: configuration.scopesSupported?.includes("webid") === true,
         ...(configuration.allowNonCompliantCnf === true ? { allowNonCompliantCnf: true } : {}),
         expectedWebId: record.webId,
+        onToleranceApplied: (kind) => {
+          this.#recordToleranceApplied(configuration.issuer, kind);
+        },
       });
     } catch (error) {
       if (error instanceof SebaAuthError) {
@@ -539,11 +545,19 @@ export class SessionManager {
   /** Clear the in-memory session and the stored record. */
   async clearLocal(): Promise<void> {
     this.#state = null;
+    this.#firedTolerances.clear();
     try {
       await this.#options.storage.clear();
     } catch (error) {
       this.#log("stored session could not be removed", error);
     }
+  }
+
+  #recordToleranceApplied(issuer: string, kind: "allowNonCompliantAudience" | "allowNonCompliantCnf"): void {
+    const key = `${issuer}:${kind}`;
+    if (this.#firedTolerances.has(key)) return;
+    this.#firedTolerances.add(key);
+    this.#emit("tolerance-applied");
   }
 
   /** Whether the current access token is expired or within the refresh skew. */
