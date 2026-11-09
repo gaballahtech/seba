@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased] — Round 3 (v1.0 hardening)
+## [Unreleased]
+
+## [1.0.0] — 2026-11-09 (v1.0 hardening / Round 3)
 
 ### Stability tiers (honest declaration)
 
