@@ -302,6 +302,17 @@ npm run test:coverage   # vitest + v8 coverage
 
 CI (GitHub Actions): typecheck, tests, build, `publint` (required), plus informational `attw`/coverage steps. Dependency updates are managed via Dependabot.
 
+## Bundle size
+
+Measured from built `dist/` entry files (packed bytes and gzip). The `browser` entry has an enforced gzip budget in CI (`npm run size`). See `scripts/size.mjs`.
+
+| Entry | File | Packed (B) | Gzipped (B) | Budget gzip (B) |
+|---|---|---:|---:|---:|
+| browser | `dist/browser/index.js` | 337 | 237 | 261 |
+| node | `dist/node/index.js` | 329 | 234 | — |
+| react | `dist/react/index.js` | 3483 | 1089 | — |
+| pod | `dist/pod.js` | 8963 | 2385 | — |
+
 ## Code graph
 
 A **Graphify** snapshot (local, AST-only, no LLM) is kept in `graphify-out/` (ignored) to help navigate call relationships. Regenerate locally:

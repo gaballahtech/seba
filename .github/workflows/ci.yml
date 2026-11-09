@@ -33,7 +33,9 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            let body = '## Coverage\nCoverage job completed. See the `Coverage (required thresholds)` step for details and `coverage/README.md` for the baseline/target.';
+            let body = '## Coverage\nCoverage job completed. See the `Coverage (required thresholds)` step for details and `docs/coverage-baseline.md` for the baseline/target.';
             try { if (fs.existsSync('coverage/lcov.info')) body += '\n\n`coverage/lcov.info` was generated.'; } catch {}
             github.rest.issues.createComment({ issue_number: context.issue.number, owner: context.repo.owner, repo: context.repo.repo, body });
+      - name: Bundle size (T11)
+        run: npm run build && npm run size
 

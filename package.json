@@ -97,7 +97,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "check:exports": "npm run build && npx --yes publint@0.3.12",
-    "test:e2e": "vitest run --config vitest.e2e.config.ts"
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "size": "node scripts/size.mjs"
   },
   "dependencies": {
     "idb": "8.0.4",
