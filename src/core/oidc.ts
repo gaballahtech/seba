@@ -482,6 +482,8 @@ export async function validateIdToken(input: {
   expectedWebId?: string;
   expectedSubject?: string;
   jwks?: JWTVerifyGetKey;
+  /** Called when an explicit tolerance bypass is actually applied (Task 8). */
+  onToleranceApplied?: (kind: "allowNonCompliantAudience" | "allowNonCompliantCnf") => void;
 }): Promise<Identity> {
   const jwks = input.jwks ?? createJwks(input.configuration.jwksUri, input.fetchImpl);
   let payload: Record<string, unknown>;
@@ -524,6 +526,7 @@ export async function validateIdToken(input: {
         { stage: "id-token-audience" },
       );
     }
+    input.onToleranceApplied?.("allowNonCompliantAudience");
     if (!hasNonCompliantAudienceWarned()) {
       setNonCompliantAudienceWarned(true);
       console.warn(
@@ -571,7 +574,12 @@ export async function validateIdToken(input: {
 
 async function checkDpopBinding(
   payload: Record<string, unknown>,
-  input: { signer?: DPoPSigner; requireDpopBinding?: boolean; allowNonCompliantCnf?: boolean },
+  input: {
+    signer?: DPoPSigner;
+    requireDpopBinding?: boolean;
+    allowNonCompliantCnf?: boolean;
+    onToleranceApplied?: (kind: "allowNonCompliantAudience" | "allowNonCompliantCnf") => void;
+  },
 ): Promise<void> {
   const confirmation = payload["cnf"];
   const boundThumbprint =
@@ -596,6 +604,7 @@ async function checkDpopBinding(
 
   if (input.requireDpopBinding === true) {
     if (input.allowNonCompliantCnf === true) {
+      input.onToleranceApplied?.("allowNonCompliantCnf");
       if (!hasNonCompliantCnfWarned()) {
         setNonCompliantCnfWarned(true);
         console.warn(

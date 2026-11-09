@@ -222,3 +222,15 @@ Audit checks that passed, with the mechanism:
 
 Residual risk unchanged: XSS on the application origin can use the stored refresh token and
 key while the page is open; SEBA cannot prevent that.
+
+## Security relaxations (tolerances)
+
+Some Identity Providers are not fully Solid-OIDC compliant. SEBA is **strict by default** and offers explicit, opt-in relaxations only for documented interoperability cases.
+
+| Option | What it relaxes | What remains enforced | Alternatives |
+|---|---|---|---|
+| `allowNonCompliantAudience` / `tolerances[issuer].allowNonCompliantAudience` | Missing `"solid"` in ID token `aud` when the provider advertises `webid` scope (Solid-OIDC §8.1) | Signature/JWKS, `iss`, `aud` contains `clientId` (via verification), `azp` rules, `exp`/`nbf`/`iat`, `nonce`, `cnf.jkt` (unless separately tolerated), WebID checks | Fix the provider; use a conformant IdP |
+| `allowNonCompliantCnf` / `tolerances[issuer].allowNonCompliantCnf` | Missing `cnf.jkt` on the ID token when DPoP binding is required by `webid` context | DPoP proofs are still required on requests; if `cnf.jkt` is present it is still checked; signature, `iss`, `exp`/`iat`, `nonce`, `azp`, `clientId` audience | Fix the provider; ensure ID tokens are DPoP-bound |
+
+**Safeguard:** enabling any tolerance requires `acknowledgeSecurityRelaxations: true` or SEBA throws `SebaConfigError`. Prefer per-issuer `tolerances` over global flags. Tolerances are logged as warnings when applied; validation can report application via `onToleranceApplied` callbacks (internal), and the intended session UX is a `session-changed` event with reason `tolerance-applied` (see ADR 0003).
+

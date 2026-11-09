@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased] — Round 3 (v1.0 hardening)
+
+### Stability tiers (honest declaration)
+
+- Declared **stability tiers**: `@gaballahtech/seba` core is **stable/production-grade** (CI gate `src/core/**` 85/80 lines/branches); `@gaballahtech/seba/react`, `<seba-login>`/element integration, and `@gaballahtech/seba/node` (and browser integration surface) are **BETA** (not production-grade), with loose measured coverage floors. See `README.md` “Stability tiers” and `docs/stability.md`.
+- `vitest.config.ts` comment intent clarified: beta modules gated loosely; core gated hard (threshold values unchanged except core raised to 85/80 in T5b).
+
 ## [0.5.15] — 2026-11-08
 
 ### Added

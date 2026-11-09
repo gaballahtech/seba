@@ -1,0 +1,61 @@
+name: Provider compatibility (discovery-only)
+
+on:
+  schedule:
+    # Weekly (Monday 06:15 UTC)
+    - cron: "15 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  discovery:
+    name: discovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Validate discovery (discovery-only, no login/fetch)
+        id: validate
+        run: npm run validate:discovery
+        continue-on-error: true
+
+      - name: Open/update failure issue
+        if: steps.validate.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="Provider compatibility (discovery-only) check failed"
+          BODY="The scheduled discovery-only provider compatibility check failed.
+
+          - Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - Scope: discovery/metadata checks only (no login, no token exchange, no resource fetch)
+          - Config: \`compat/providers.json\`
+
+          Please investigate provider metadata changes or network issues. Do not treat this as proof of a full login/fetch regression without manual verification."
+          EXISTING=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create --title "$TITLE" --body "$BODY" --label "compatibility" || gh issue create --title "$TITLE" --body "$BODY"
+          fi
+
+      - name: Fail if validation failed
+        if: steps.validate.outcome == 'failure'
+        run: exit 1

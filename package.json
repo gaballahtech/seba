@@ -21,6 +21,14 @@
     "./dist/node/index.js": false,
     "./dist/node/platform.js": false
   },
+  "stability": {
+    "@gaballahtech/seba": "stable",
+    "@gaballahtech/seba/browser": "beta",
+    "@gaballahtech/seba/node": "beta",
+    "@gaballahtech/seba/react": "beta",
+    "@gaballahtech/seba (web component <seba-login>)": "beta",
+    "@gaballahtech/seba/pod": "beta"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -70,6 +78,10 @@
     "SECURITY.md",
     "RELEASING.md"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "engines": {
     "node": ">=20"
   },
@@ -92,11 +104,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "check:exports": "npm run build && npx --yes publint@0.3.12"
+    "check:exports": "npm run build && npx --yes publint@0.3.12",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "size": "node scripts/size.mjs"
   },
   "dependencies": {
-    "idb": "^8.0.3",
-    "jose": "^6.1.0"
+    "idb": "8.0.4",
+    "jose": "6.2.15"
   },
   "peerDependencies": {
     "react": ">=18"

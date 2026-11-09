@@ -44,7 +44,10 @@ assertion to get green will not be merged.
 ## What a change has to respect
 
 - **No new runtime dependencies in the core.** `jose` and `idb` are the only runtime
-  dependencies; adding another needs a clear size and maintenance argument in the issue.
+  dependencies and are **pinned to exact versions** (no `^`) to reduce supply-chain
+  drift; upgrade them deliberately with lockfile review and tests. Adding another dependency
+  needs a clear size and maintenance argument in the issue (and a HUMAN_DECISIONS entry
+  where the process requires it).
 - **Keep the public surface small.** New exports are API commitments. Prefer a subpath
   export over growing the root entry point.
 - **Brand assets keep their PNG originals.** `assets/` holds the 512×512 PNG files; the
@@ -58,7 +61,7 @@ assertion to get green will not be merged.
 - **Browser and Node paths stay separate.** Platform code is loaded dynamically so a
   browser bundle never contains the Node HTTP server.
 - **Tests come with behaviour.** New behaviour needs a unit test; bug fixes need a test
-  that fails before the fix.
+  that fails before the fix. When adding features, **core requires tests**; **beta modules require at minimum smoke tests** (see `docs/stability.md`).
 
 ## Commit and pull request style
 
@@ -79,6 +82,42 @@ To keep maintenance sustainable and avoid low-quality/automated “slop” submi
 
 (Repo admins may also enforce branch/ruleset protections in GitHub settings; see GitHub’s rulesets/branch protection docs.)
 
+## Signed commits (policy)
+
+Contributors and maintainers should sign commits where feasible (`git commit -S` / SSH signing) so provenance and authorship are verifiable. Repository admins should enable **“Require signed commits”** in branch/ruleset protection for `main` once the team’s signing setup is in place.
+
+### Branch protection (recommended; apply in GitHub repo settings)
+
+Configure branch protection or a ruleset for `main` requiring at minimum:
+
+- Pull request before merging (no direct pushes except emergency admin bypass documented)
+- Required status checks: `test` (CI job name), plus any additional checks adopted (`e2e`, coverage/summary jobs as they become required)
+- Require branches to be up to date before merging (recommended)
+- Require signed commits (recommended, per policy above)
+- Restrict who can push to matching branches
+
+Include this block in PR bodies when changing workflows so reviewers/admins can apply matching settings.
+
 ## Releasing
 
-Maintainers only. See [`RELEASING.md`](./RELEASING.md) for the SemVer/stability policy, 1.0 path, and publishing checklist (version bump, changelog, checks/build/publint, `npm pack --dry-run`, publish/provenance).
+Maintainers only. See [`RELEASING.md`](./RELEASING.md) for the SemVer/stability policy, 1.0 path, and publishing checklist (version bump, changelog, checks/build/publint, `npm pack --dry-run`, publish/provenance). Tag-driven publishing is handled by `.github/workflows/release.yml` (requires the protected `npm-publish` environment and `NPM_TOKEN`/trusted publishing setup with provenance).
+
+## Branch protection & release environment (admin, HD-3 / Task 1.3, T19)
+
+The repository should enforce the following (apply in GitHub repo settings / rulesets; **not** automated from this environment):
+
+- **Required status checks (merge):** `typecheck`, `test`, `coverage`, `e2e` (where applicable), `publint` / export checks, `build`, `size` (once adopted). Do not merge on red checks.
+- **Required pull request review:** at least 1 approving review.
+- **Signed commits:** required for the protected branch (per policy).
+- **Protected environment `npm-publish`:** used by `.github/workflows/release.yml` for tag `v*` publishes. Configure required reviewers and `NPM_TOKEN` (or npm trusted publishing) with least privilege; restrict who can deploy. The workflow uses `id-token: write` for provenance (`npm publish --provenance --access public`).
+
+Status: **DOCUMENTED — awaiting admin**.
+
+## External items still required (maintainer/admin action — not agent work)
+
+These are **not** marked done by the v1.0 release draft. They must be completed and verified by repository administrators/maintainers (definitive list: [`docs/release-notes/v1.0.md`](./docs/release-notes/v1.0.md)):
+
+1. **HD-2 (secrets / live provider E2E):** Unattended solidweb.org (or other real-provider) live E2E requires credentials and a non-interactive flow (`SEBA_E2E_SOLIDWEB=1` gating exists). Manual/live verification remains documented.
+2. **HD-3 (GitHub admin):** Apply branch protection/rulesets and required checks (including coverage/e2e/publint/build/size as adopted), require PR review, require signed commits if policy is enforced, and configure the protected `npm-publish` environment with required reviewers and `NPM_TOKEN`/trusted publishing.
+3. **npm publish with provenance:** `.github/workflows/release.yml` is configured for `npm publish --provenance --access public` (`id-token: write`), but provenance/trusted publishing **activation and a real tagged publish** require admin/npm-side setup and a maintainer release action.
+4. **Provider live compatibility:** `.github/workflows/provider-compat.yml` performs **discovery-only** checks (no login/token/resource fetch). It does not prove live login/fetch compatibility.

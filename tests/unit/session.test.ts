@@ -319,7 +319,7 @@ describe("adopt", () => {
     expect(saved?.accessToken).toBe("access-token-1");
   });
 
-  it("keeps a no-refresh-token session in memory only when soft-persist is disabled", async () => {
+  it("keeps a no-refresh-token session in memory only when soft-persist is disabled (reload returns null)", async () => {
     const storage = memorySessionStorage(null);
     const manager = new SessionManager({
       clientId: CLIENT_ID,
@@ -338,6 +338,15 @@ describe("adopt", () => {
     });
     expect(manager.isAuthenticated).toBe(true);
     expect(await storage.load()).toBeNull();
+    // Reload/new manager sees no persisted session.
+    const reloaded = new SessionManager({
+      clientId: CLIENT_ID,
+      storage,
+      fetchImpl: vi.fn<typeof fetch>(),
+      discover: async () => configuration(),
+      persistSessionWithoutRefreshToken: "never",
+    });
+    await expect(reloaded.restore()).resolves.toBeNull();
   });
 
   it("keeps the session usable when storage fails", async () => {

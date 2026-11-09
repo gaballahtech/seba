@@ -4,6 +4,10 @@ This guide maps the common operations of `@inrupt/solid-client-authn-browser` (v
 `@gaballahtech/seba`. It is written from a real migration (a Google-Tasks-style todo app
 validated against solidcommunity.net).
 
+## Unreleased / next
+
+- **Security relaxation acknowledgement (Task 8).** If you enable `allowNonCompliantAudience`, `allowNonCompliantCnf`, or any `tolerances` entry, you must now set `acknowledgeSecurityRelaxations: true` in `SebaConfig`; otherwise construction throws `SebaConfigError`. This makes security downgrades explicit. See [`SECURITY.md`](./SECURITY.md) and [`docs/adr/0003-tolerances-as-system.md`](./docs/adr/0003-tolerances-as-system.md).
+
 ## From SEBA 0.5.0 to 0.5.1
 
 - **`Seba.pod` was removed** so login-only bundles can tree-shake the Turtle parser. Use the
