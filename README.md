@@ -118,9 +118,9 @@ npm install @gaballahtech/seba
 </script>
 ```
 
-The element can start login on click, complete the callback on the redirect route, restore a stored session on load, and switch to “Sign out” when authenticated.
+The element renders an inline sign-in card (not a modal): one-tap buttons for the three main providers (Inrupt PodSpaces, SolidCommunity.net and SolidWeb.org), a `…` button for the full provider list or a WebID, and a “Create an account” flow with a secondary provider list. The WebID field works like a phone-number input: pick the provider on the left and type the rest of the identifier on the right. It completes the callback on the redirect route, restores a stored session on load, and switches to an account card with “Sign out” when authenticated.
 
-**Common attributes:** `client-id` (required), `redirect-uri` (defaults to current page URL without fragment), `issuer` / `issuer-url`, `providers`, `web-id`, `label`, `theme` (`auto|light|dark`), `logo`, `account`, `get-a-pod` (**absolute `https:` only**; falls back to the Solid Project page), `config` (JSON `SebaConfig` overrides, e.g. per-provider `tolerances`).
+**Common attributes:** `client-id` (required), `redirect-uri` (defaults to current page URL without fragment), `issuer` / `issuer-url`, `providers` (the first three become one-tap buttons; the rest appear under `…`), `web-id`, `label` (card heading), `theme` (`auto|light|dark`), `logo` (brand mark, or `none`), `account`, `get-a-pod` (**absolute `https:` only**; used as the “learn more” link), `config` (JSON `SebaConfig` overrides, e.g. per-provider `tolerances`).
 
 **Events:** `seba:login`, `login-success` (alias), `seba:logout`, `seba:error`.  
 **Utility export:** `safeExternalHttpUrl(value)` validates an absolute `https:` URL and returns it or `null`.
