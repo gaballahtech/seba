@@ -408,6 +408,7 @@ export class SebaLoginElement extends HTMLElementBase {
       anchor.target = "_blank";
       anchor.rel = "noopener noreferrer";
       anchor.textContent = choice.domain;
+      anchor.title = `${choice.name} website`;
       site = anchor;
     } else {
       const label = document.createElement("span");
@@ -703,7 +704,8 @@ export class SebaLoginElement extends HTMLElementBase {
       `</header>` +
       `<div class="providers" role="group" aria-label="Pod providers"></div>` +
       `<button class="more" type="button" aria-haspopup="dialog" aria-label="More sign-in options">` +
-      `<span aria-hidden="true">&#8943;</span></button>` +
+      `<span class="more-dots" aria-hidden="true">&#8943;</span>` +
+      `<span class="more-text">More options</span></button>` +
       `<p class="create">New to Solid? <button class="create-open" type="button">Create an account</button></p>` +
       `<div class="or" aria-hidden="true"><span>or</span></div>` +
       `<form class="webid-form">` +
@@ -720,9 +722,19 @@ export class SebaLoginElement extends HTMLElementBase {
       `<button class="continue" type="submit">Continue</button>` +
       `<p class="notice" role="alert" hidden></p>` +
       `</form>` +
+      `<p class="trust">` +
+      `<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">` +
+      `<path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 1 1 6 0v3H9Z" fill="currentColor"/>` +
+      `</svg>` +
+      `<span>Your password never leaves your provider.</span>` +
+      `</p>` +
       `</div>` +
       `<div class="signed-in" hidden>` +
-      `<p class="eyebrow">Signed in</p>` +
+      `<div class="account-head">` +
+      `<span class="account-mark" aria-hidden="true">${PERSON_SVG}</span>` +
+      `<div><p class="eyebrow">Signed in</p>` +
+      `<p class="account-title">Your Pod is connected</p></div>` +
+      `</div>` +
       `<p class="account-webid"></p>` +
       `<button class="signout" type="button">Sign out</button>` +
       `</div>` +
