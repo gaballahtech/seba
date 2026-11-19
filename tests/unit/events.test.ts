@@ -64,10 +64,15 @@ describe("session change events", () => {
     expect(events).toHaveLength(1);
     expect(events[0]?.reason).toBe("login");
     expect(events[0]?.session?.webId).toBe(WEB_ID);
+    expect(events[0]?.previousSession).toBeNull();
 
     await sessions.logout();
     expect(events).toHaveLength(2);
-    expect(events[1]).toEqual({ reason: "logout", session: null });
+    expect(events[1]).toEqual({
+      reason: "logout",
+      session: null,
+      previousSession: { webId: WEB_ID, isLoggedIn: true, provider: ISSUER },
+    });
   });
 
   it("reports expiry once per session and again after a new login", async () => {
@@ -80,7 +85,11 @@ describe("session change events", () => {
 
     expect(events.map((event) => event.reason)).toEqual(["login", "expired"]);
     // The contract is `session: null` on expiry, including the refresh-failure path.
-    expect(events[1]).toEqual({ reason: "expired", session: null });
+    expect(events[1]).toEqual({
+      reason: "expired",
+      session: null,
+      previousSession: { webId: WEB_ID, isLoggedIn: true, provider: ISSUER },
+    });
 
     await adopt(sessions, tokens());
     await expect(sessions.refreshIfNeeded(true)).rejects.toBeInstanceOf(SebaSessionExpiredError);

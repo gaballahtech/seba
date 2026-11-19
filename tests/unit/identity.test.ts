@@ -196,6 +196,43 @@ describe("parseLinkHeader", () => {
     expect(parseLinkHeader(header, OIDC_ISSUER_PREDICATE)).toEqual(["https://idp.example"]);
     expect(parseLinkHeader(null, OIDC_ISSUER_PREDICATE)).toEqual([]);
   });
+
+  it("does not split on commas inside a target URI", () => {
+    const header = `<https://a.example/x?y=1,2>; rel="next", <https://idp.example>; rel="${OIDC_ISSUER_PREDICATE}"`;
+    expect(parseLinkHeader(header, OIDC_ISSUER_PREDICATE)).toEqual(["https://idp.example"]);
+    expect(parseLinkHeader(header, "next")).toEqual(["https://a.example/x?y=1,2"]);
+  });
+
+  it("does not split on commas or semicolons inside quoted parameter values", () => {
+    const header = `<https://a.example/x>; title="a, b; c"; rel="${OIDC_ISSUER_PREDICATE}"`;
+    expect(parseLinkHeader(header, OIDC_ISSUER_PREDICATE)).toEqual(["https://a.example/x"]);
+  });
+
+  it("matches one relation out of a space-separated rel value", () => {
+    const header = `<https://idp.example>; rel="alternate ${OIDC_ISSUER_PREDICATE}"`;
+    expect(parseLinkHeader(header, OIDC_ISSUER_PREDICATE)).toEqual(["https://idp.example"]);
+  });
+
+  it("handles escaped quotes and unquoted parameter values", () => {
+    const escaped = `<https://idp.example>; title="a \\"quoted\\" title"; rel="${OIDC_ISSUER_PREDICATE}"`;
+    expect(parseLinkHeader(escaped, OIDC_ISSUER_PREDICATE)).toEqual(["https://idp.example"]);
+
+    const unquoted = `<https://idp.example>; rel=${OIDC_ISSUER_PREDICATE}`;
+    expect(parseLinkHeader(unquoted, OIDC_ISSUER_PREDICATE)).toEqual(["https://idp.example"]);
+  });
+
+  it("skips malformed entries and stops on an unterminated target", () => {
+    expect(
+      parseLinkHeader(`garbage, <https://idp.example>; rel="${OIDC_ISSUER_PREDICATE}"`, OIDC_ISSUER_PREDICATE),
+    ).toEqual(["https://idp.example"]);
+    expect(parseLinkHeader(`garbage`, OIDC_ISSUER_PREDICATE)).toEqual([]);
+    expect(parseLinkHeader(`<https://idp.example`, OIDC_ISSUER_PREDICATE)).toEqual([]);
+  });
+
+  it("returns [] for empty or whitespace-only headers", () => {
+    expect(parseLinkHeader("", OIDC_ISSUER_PREDICATE)).toEqual([]);
+    expect(parseLinkHeader("   ", OIDC_ISSUER_PREDICATE)).toEqual([]);
+  });
 });
 
 describe("discoverIssuerForWebId", () => {
@@ -232,6 +269,48 @@ describe("discoverIssuerForWebId", () => {
       }),
     );
     await expect(discoverIssuerForWebId(webId, fetchImpl)).resolves.toBe("https://idp.example");
+  });
+
+  it("parses Turtle even when the provider mislabels it as text/html", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      turtleResponse(
+        '@prefix solid: <http://www.w3.org/ns/solid/terms#>.\n<#me> solid:oidcIssuer <https://idp.example> .',
+        "text/html",
+      ),
+    );
+    await expect(discoverIssuerForWebId(webId, fetchImpl)).resolves.toBe("https://idp.example");
+  });
+
+  it("reports the parse failure when an HTML profile names no issuer", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response("<html><body>not a profile</body></html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      }),
+    );
+    await expect(discoverIssuerForWebId(webId, fetchImpl)).rejects.toThrow(/could not be parsed/);
+  });
+
+  it("reports the parse failure for an invalid JSON-LD profile", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response("{not json", { status: 200, headers: { "content-type": "application/ld+json" } }),
+    );
+    await expect(discoverIssuerForWebId(webId, fetchImpl)).rejects.toThrow(/could not be parsed/);
+  });
+
+  it("fails with HTTP status when the profile cannot be fetched", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response("", { status: 404 }));
+    await expect(discoverIssuerForWebId(webId, fetchImpl)).rejects.toThrow(/HTTP 404/);
+  });
+
+  it("rejects a profile that declares more than one issuer", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      turtleResponse(
+        '@prefix solid: <http://www.w3.org/ns/solid/terms#>.\n' +
+          "<#me> solid:oidcIssuer <https://a.example>, <https://b.example> .",
+      ),
+    );
+    await expect(discoverIssuerForWebId(webId, fetchImpl)).rejects.toThrow(/more than one solid:oidcIssuer/);
   });
 
   it("fails closed when the profile does not name the WebID", async () => {

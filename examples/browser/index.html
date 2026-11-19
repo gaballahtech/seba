@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SEBA browser example (no build)</title>
+  </head>
+  <body>
+    <seba-login client-id="https://app.example/client-id.jsonld"></seba-login>
+
+    <!--
+      No build step: an import map resolves the package's bare imports (jose, idb)
+      to browser builds. Self-host these files instead of using a CDN in production.
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@gaballahtech/seba/browser": "https://unpkg.com/@gaballahtech/seba@1.0.0/dist/browser/index.js",
+          "jose": "https://unpkg.com/jose@6.2.15/dist/browser/index.js",
+          "idb": "https://unpkg.com/idb@8.0.4/build/index.js"
+        }
+      }
+    </script>
+    <script type="module">
+      import { defineSebaLogin } from "@gaballahtech/seba/browser";
+
+      defineSebaLogin();
+
+      const element = document.querySelector("seba-login");
+      element.addEventListener("seba:login", (event) => {
+        console.log("Signed in as", event.detail.session.webId);
+      });
+      element.addEventListener("seba:logout", () => {
+        console.log("Signed out");
+      });
+      element.addEventListener("seba:error", (event) => {
+        console.error(event.detail.error);
+      });
+    </script>
+  </body>
+</html>
