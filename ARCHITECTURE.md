@@ -9,7 +9,7 @@ SEBA is a single npm package with three entry points over one implementation:
    seba          │  src/index.ts  (public API)  │
                  └──────────────┬───────────────┘
                     ┌───────────┴────────────┐
-                    │  src/seba.ts  (Seba)   │  4 public methods, lazy runtime binding
+                     │  src/seba.ts  (Seba)   │  small public API + events, lazy runtime binding
                     └───────────┬────────────┘
                                 │
                  ┌──────────────▼───────────────┐
@@ -213,19 +213,31 @@ single atomic overwrite.
 ## 9. Public API design
 
 ```ts
-class Seba {
+class Seba extends EventTarget {
   constructor(config: SebaConfig)
   login(options?: LoginOptions): Promise<Session>
+  completeLogin(): Promise<Session>
   restoreSession(): Promise<Session | null>
+  getSession(): Promise<Session | null>
+  getSessionInfo(): Promise<SessionInfo | null>
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>
   logout(): Promise<void>
+  onSessionChange(listener): () => void
+  offSessionChange(listener): void
+  onSessionExpired(listener): () => void
+  static isCallbackResponse(url?: string | URL): boolean
 }
 ```
 
-Exactly four public methods. `Session` carries `webId`, `isLoggedIn: true`, `provider` and
-no tokens. Tokens, keys and proofs are never exported from the package root. Configuration
-is validated when the first operation runs (`SebaConfigError`); there are no
-proof-caching or TTL knobs.
+The four primary operations are `login`, `restoreSession`, `fetch` and `logout`. Read-only
+session access (`getSession`, `getSessionInfo`) and session-change subscriptions
+(`onSessionChange` / `offSessionChange` / `onSessionExpired`) are additive. `Seba` is an
+`EventTarget` and dispatches `login`, `logout` and `session-changed` events; every
+`SessionChangeEvent` carries `reason`, `session` and `previousSession`.
+
+`Session` carries `webId`, `isLoggedIn: true`, `provider` and no tokens. Tokens, keys and
+proofs are never exported from the package root. Configuration is validated when the first
+operation runs (`SebaConfigError`); there are no proof-caching or TTL knobs.
 
 `Seba` binds its platform on first use (dynamic import of `browser/platform.js` when
 `window`/`document` exist, otherwise `node/platform.js`), which keeps `node:http` out of

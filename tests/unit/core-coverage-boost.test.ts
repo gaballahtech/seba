@@ -53,7 +53,7 @@ describe("SessionEmitter (covers src/core/events.ts)", () => {
     emitter.on(l2);
     emitter.on(l3);
     expect(emitter.size).toBe(3);
-    emitter.emit({ reason: "login", session: null });
+    emitter.emit({ reason: "login", session: null, previousSession: null });
     expect(seen).toEqual(["a", "b"]);
     unsub();
     emitter.off(l3);

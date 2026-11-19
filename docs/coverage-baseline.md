@@ -10,7 +10,7 @@
 |---|---:|---:|---|
 | `src/core/**` | 85 | 80 | **Stable/production gate (T5b complete).** Security-critical protocol logic (OIDC/DPoP/session/client). Measured 85.03%/82.07% on 2026-11-09 after targeted client flow/config/helper tests (`tests/unit/client-edge-cases.test.ts`, `tests/unit/core-coverage-boost.test.ts`). `src/core/client.ts` measured 85.77%/83.06% (branches ≥75% target met). |
 | `src/browser/**` | 32 | 33 | DOM/storage/browser APIs; node-env unit test cost; raise with targeted tests. |
-| `src/element/**` | 0 | 0 | Web Component/DOM; no current node-env coverage baseline (BETA). |
+| `src/element.ts` | 0 | 0 | Web Component/DOM; no current node-env coverage baseline (BETA). |
 | `src/react/**` | 14 | 35 | React bindings; baseline floor (BETA). |
 | `src/node/**` | 66 | 53 | Node platform/IO (BETA). |
 | fallback (other `src/**`) | 59 | 55 | Defensive fallback, measured-safe. |

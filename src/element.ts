@@ -706,7 +706,7 @@ export class SebaLoginElement extends HTMLElementBase {
       `<button class="more" type="button" aria-haspopup="dialog" aria-label="More sign-in options">` +
       `<span class="more-dots" aria-hidden="true">&#8943;</span>` +
       `<span class="more-text">More options</span></button>` +
-      `<p class="create">New to Solid? <button class="create-open" type="button">Create an account</button></p>` +
+      `<p class="create">New to Solid? <button class="create-open" type="button">Get a Pod</button></p>` +
       `<div class="or" aria-hidden="true"><span>or</span></div>` +
       `<form class="webid-form">` +
       `<label class="field-label" for="seba-webid">Continue with your WebID</label>` +

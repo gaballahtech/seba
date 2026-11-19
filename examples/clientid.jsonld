@@ -1,0 +1,11 @@
+{
+  "@context": ["https://www.w3.org/ns/solid/oidc-context.jsonld"],
+  "client_id": "https://app.example/client-id.jsonld",
+  "client_name": "Example SEBA app",
+  "client_uri": "https://app.example/",
+  "redirect_uris": ["https://app.example/auth/callback"],
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "scope": "openid webid offline_access",
+  "token_endpoint_auth_method": "none"
+}
