@@ -1,6 +1,6 @@
 {
   "name": "@gaballahtech/seba",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Developer-friendly Solid-OIDC authentication: login, session restoration and DPoP-signed fetch in four methods.",
   "license": "MIT",
   "author": "gaballahtech",
@@ -67,8 +67,6 @@
     "examples/react/index.html",
     "examples/react/main.tsx",
     "examples/react/vite.config.ts",
-    "examples/react/tsconfig.json",
-    "examples/react/README.md",
     "README.md",
     "CHANGELOG.md",
     "MIGRATION.md",

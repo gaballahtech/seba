@@ -65,7 +65,7 @@ These are **not** marked done by the v1.0 release draft. They must be completed 
 
 ## Why SEBA
 
-- **Small API:** `login()`, `restoreSession()`, `fetch()`, `logout()` (+ `session` / `getSession()`).
+- **Small API:** `login()`, `restoreSession()`, `fetch()`, `logout()` (+ `getSession()` / `getSessionInfo()`).
 - **Standards-based security defaults:** PKCE S256, `state` + RFC 9207 `iss` checks, nonce, ID token validation, DPoP proofs (fresh per request), and redirect credential safety.
 - **Multiple integration styles:** browser ESM, Node.js (>= 20), zero-build `<seba-login>` Web Component, and React helpers.
 - **Transparent behavior:** token-free public session info, explicit errors, and documented interoperability tradeoffs.
@@ -118,9 +118,9 @@ npm install @gaballahtech/seba
 </script>
 ```
 
-The element can start login on click, complete the callback on the redirect route, restore a stored session on load, and switch to “Sign out” when authenticated.
+The element renders an inline sign-in card (not a modal): one-tap buttons for the three main providers (Inrupt PodSpaces, SolidCommunity.net and SolidWeb.org), a `…` button for the full provider list or a WebID, and a “Get a Pod” flow (the community term for creating an account/Pod) with a secondary provider list. The WebID field works like a phone-number input: pick the provider on the left and type the rest of the identifier on the right. It completes the callback on the redirect route, restores a stored session on load, and switches to an account card with “Sign out” when authenticated.
 
-**Common attributes:** `client-id` (required), `redirect-uri` (defaults to current page URL without fragment), `issuer` / `issuer-url`, `providers`, `web-id`, `label`, `theme` (`auto|light|dark`), `logo`, `account`, `get-a-pod` (**absolute `https:` only**; falls back to the Solid Project page), `config` (JSON `SebaConfig` overrides, e.g. per-provider `tolerances`).
+**Common attributes:** `client-id` (required), `redirect-uri` (defaults to current page URL without fragment), `issuer` / `issuer-url`, `providers` (the first three become one-tap buttons; the rest appear under `…`), `web-id`, `label` (card heading), `theme` (`auto|light|dark`), `logo` (brand mark, or `none`), `account`, `get-a-pod` (**absolute `https:` only**; used as the “learn more” link), `config` (JSON `SebaConfig` overrides, e.g. per-provider `tolerances`).
 
 **Events:** `seba:login`, `login-success` (alias), `seba:logout`, `seba:error`.  
 **Utility export:** `safeExternalHttpUrl(value)` validates an absolute `https:` URL and returns it or `null`.
@@ -138,15 +138,9 @@ const seba = new Seba({
   // debug: true, // non-sensitive diagnostics only
 });
 
-const restored = await seba.restoreSession();
-if (!restored) {
-  // Triggers redirect-based login (or completes callback if the URL has code+state)
-  await seba.login({ webId: "https://alice.example/profile/card#me" });
-  // Or: await seba.login({ issuer: "https://login.inrupt.com" });
-}
-
-const me = await seba.fetch("https://alice.example/private/data");
-console.log(seba.session.webId, await me.text());
+const session = restored ?? (await seba.login({ webId: "https://alice.example/profile/card#me" }));
+const me = await seba.fetch(session.webId);
+console.log(session.webId, await me.text());
 
 await seba.logout();
 ```
@@ -265,20 +259,26 @@ Clears local session state first, then attempts revocation if the provider adver
 
 ### Session & errors
 
-- `seba.session` / `seba.getSession()`: token-free public session info (`{ webId, isLoggedIn, provider }`).
+- `seba.getSession()` / `seba.getSessionInfo()`: token-free public session info (`{ webId, isLoggedIn, provider }`), or `null` when signed out.
 - All library errors extend `SebaError` with a stable `code` (e.g. `SebaConfigError`, `SebaDiscoveryError`, `SebaAuthError`, `SebaSessionExpiredError`, `SebaNetworkError`, `SebaNoUIError`, etc.).
 
 ## Events
 
-`Seba` is an `EventTarget`:
+`Seba` is an `EventTarget` (and also exposes `onSessionChange` / `offSessionChange` / `onSessionExpired`):
+
+```ts
+seba.addEventListener("login", (event) => console.log(event.detail.webId));
+seba.addEventListener("session-changed", (event) => console.log(event.detail.reason, event.detail.previousSession));
+seba.addEventListener("logout", (event) => console.log("signed out", event.detail));
+```
 
 | Event | When | `detail` |
 |---|---|---|
-| `login` | A session becomes authenticated | `SessionInfo` |
+| `login` | A session becomes authenticated (`login` or `restore`) | `Session` |
 | `session-changed` | Any session transition | `SessionChangeEvent` (`reason`, `session`, `previousSession`) |
-| `logout` | The session ends | `SessionInfo \| null` (previous session) |
+| `logout` | The session ends (`logout` or `expired`) | `Session \| null` (the previous session) |
 
-`session-changed` `reason` values: `"login" | "restore" | "logout" | "expired" | "tolerance-applied"` (see [Token Refresh Timing](#token-refresh-timing) and security tolerance events).
+`session-changed` `reason` values: `"login" | "restore" | "logout" | "expired" | "tolerance-applied"` (see [Token Refresh Timing](#token-refresh-timing) and security tolerance events). `previousSession` is the session that was active before the transition (`null` when there was none).
 
 ## Session & Authorization Lifecycle
 

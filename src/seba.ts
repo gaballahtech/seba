@@ -12,6 +12,7 @@ import type {
   Platform,
   SebaConfig,
   Session,
+  SessionChangeEvent,
   SessionChangeListener,
   SessionInfo,
 } from "./types.js";
@@ -40,6 +41,11 @@ async function loadNamespacer(): Promise<(platform: Platform, account: string) =
  * Solid-OIDC client with four operations: {@link Seba.login}, {@link Seba.restoreSession},
  * {@link Seba.fetch} and {@link Seba.logout}.
  *
+ * `Seba` is an {@link EventTarget}. Every session transition is dispatched as a
+ * `session-changed` event, and `login` / `logout` are emitted as their own events for
+ * convenience. The same transitions are also available through
+ * {@link Seba.onSessionChange}.
+ *
  * @example
  * ```ts
  * const seba = new Seba({
@@ -51,29 +57,55 @@ async function loadNamespacer(): Promise<(platform: Platform, account: string) =
  * const response = await seba.fetch(session.webId);
  * ```
  */
-export class Seba {
+export class Seba extends EventTarget {
   readonly #client: Promise<SebaClient>;
   readonly #events = new SessionEmitter();
-
 
   /**
    * @param config - Client ID Document URL, redirect URI and optional storage settings.
    *   Configuration is validated when the first operation runs.
    */
   constructor(config: SebaConfig) {
+    super();
     this.#client = (async () => {
       const [platform, namespacer] = await Promise.all([loadPlatform(), loadNamespacer()]);
       const scoped = config.account === undefined ? platform : namespacer(platform, config.account);
       return new SebaClient(config, scoped, {
         onSessionChange: (event) => {
-          this.#events.emit(event);
+          this.#handleSessionChange(event);
         },
       });
     })();
   }
 
   /**
-   * Subscribe to session transitions (`login`, `restore`, `logout`, `expired`).
+   * Fan a session transition out to `onSessionChange` listeners and to DOM-style
+   * listeners registered with `addEventListener`.
+   */
+  #handleSessionChange(event: SessionChangeEvent): void {
+    this.#events.emit(event);
+    this.#dispatch("session-changed", event);
+    if (event.reason === "login" || event.reason === "restore") {
+      this.#dispatch("login", event.session);
+    } else if (event.reason === "logout" || event.reason === "expired") {
+      this.#dispatch("logout", event.previousSession);
+    }
+  }
+
+  /** Dispatch a CustomEvent when the runtime supports it, otherwise a plain Event. */
+  #dispatch(type: string, detail: unknown): void {
+    if (typeof CustomEvent === "function") {
+      this.dispatchEvent(new CustomEvent(type, { detail }));
+      return;
+    }
+    const event = new Event(type);
+    Object.defineProperty(event, "detail", { value: detail });
+    this.dispatchEvent(event);
+  }
+
+  /**
+   * Subscribe to session transitions (`login`, `restore`, `logout`, `expired`,
+   * `tolerance-applied`).
    *
    * @returns An unsubscribe function.
    */

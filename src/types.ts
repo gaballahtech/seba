@@ -210,6 +210,13 @@ export interface SessionChangeEvent {
   readonly reason: SessionChangeReason;
   /** Session after the transition, or `null` after logout/expiry. */
   readonly session: Session | null;
+  /**
+   * Session before the transition, or `null` when there was none.
+   *
+   * On `logout` and `expired` this is the session that ended; on `login`/`restore`
+   * it is the previously active session (usually `null`).
+   */
+  readonly previousSession: Session | null;
 }
 
 /** Listener accepted by `onSessionChange`. */

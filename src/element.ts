@@ -1,16 +1,22 @@
 /**
- * `<seba-login>`: a zero-dependency, Google-quality sign-in custom element.
+ * `<seba-login>`: a zero-dependency, Google-quality sign-in card.
  *
- * The compact button opens a polished dialog: a custom provider listbox with
- * brand tiles, an "or" divider, a manual WebID/issuer field with automatic
- * discovery, a sign-up link and full keyboard + ARIA support. Opt-in design:
- * importing the package registers nothing until `defineSebaLogin` is called
- * (or the React wrapper imports it).
+ * The element renders an inline card (not a modal) with one-tap buttons for the
+ * three primary Pod providers, a "more options" button that opens either the
+ * full provider list or the WebID field, a "create an account" flow, and a
+ * phone-style WebID field: pick a provider on the left, type the rest of the
+ * identifier on the right. Importing the package registers nothing until
+ * `defineSebaLogin` is called (or the React wrapper imports it).
  */
 
+import { CARD_STYLES } from "./assets/card-styles.js";
 import { isSebaLogoVariant, sebaLogoImage } from "./assets/icons.js";
-import type { SebaLogoVariant } from "./assets/icons.js";
-import { DEFAULT_PROVIDERS, issuerDomain, PROVIDER_INFO, providerInfo } from "./assets/providers.js";
+import {
+  ALL_PROVIDERS,
+  issuerDomain,
+  PRIMARY_PROVIDERS,
+  providerInfo,
+} from "./assets/providers.js";
 import { SebaConfigError, SebaSessionExpiredError } from "./core/errors.js";
 import { Seba } from "./seba.js";
 import type { LoginOptions, Session, SessionChangeEvent } from "./types.js";
@@ -33,226 +39,40 @@ const OBSERVED_ATTRIBUTES = [
   "account",
 ] as const;
 
-const STYLES = `
-:host {
-  display: inline-block;
-  --seba-accent: #7c3aed;
-  --seba-accent-deep: #5b21b6;
-  --seba-accent-hover: #6d28d9;
-  --seba-accent-contrast: #ffffff;
-  --seba-surface: #ffffff;
-  --seba-raised: #ffffff;
-  --seba-text: #1b1b1f;
-  --seba-muted: #6b6a75;
-  --seba-border: #e4e1ef;
-  --seba-tile: #f3effe;
-  --seba-hover: #f6f2ff;
-  --seba-ring: rgba(124, 58, 237, 0.45);
-  --seba-shadow: 0 24px 64px -12px rgba(27, 17, 51, 0.38);
-  font: 500 14px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif;
-  color: var(--seba-text);
-}
-:host([theme="dark"]) {
-  --seba-surface: #14121a;
-  --seba-raised: #1d1928;
-  --seba-text: #f5f3ff;
-  --seba-muted: #a7a2b8;
-  --seba-border: #37304a;
-  --seba-tile: #2a2340;
-  --seba-hover: #292136;
-  --seba-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.7);
-}
-:host([hidden]) { display: none !important; }
-[hidden] { display: none !important; }
+const CUSTOM_PREFIX = "__custom__";
 
-.primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55em;
-  padding: 0.72em 1.25em;
-  border: none;
-  border-radius: 0.8em;
-  background: linear-gradient(135deg, var(--seba-accent) 0%, var(--seba-accent-deep) 100%);
-  color: #ffffff;
-  font: inherit;
-  cursor: pointer;
-  box-shadow: 0 1px 2px rgba(76, 29, 149, 0.35), 0 8px 24px -8px rgba(124, 58, 237, 0.55);
-  transition: filter 130ms ease, transform 130ms ease, box-shadow 130ms ease;
-}
-.primary:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
-.primary:active:not(:disabled) { transform: translateY(0); filter: brightness(0.97); }
-.primary:focus-visible { outline: 3px solid var(--seba-ring); outline-offset: 2px; }
-.primary:disabled { opacity: 0.65; cursor: progress; }
-.primary[data-state="authenticated"] {
-  background: var(--seba-surface);
-  color: var(--seba-text);
-  border: 1px solid var(--seba-border);
-  box-shadow: none;
-}
-.logo { display: block; width: 1.3em; height: 1.3em; object-fit: contain; }
-.primary[data-state="authenticated"] .logo { background: var(--seba-tile); border-radius: 0.35em; padding: 1px; }
+const CHEVRON_SVG =
+  `<svg viewBox="0 0 24 24" width="1.05em" height="1.05em" focusable="false" aria-hidden="true">` +
+  `<path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const CHEVRON_DOWN_SVG =
+  `<svg viewBox="0 0 24 24" width="0.9em" height="0.9em" focusable="false" aria-hidden="true">` +
+  `<path d="M7 10l5 5 5-5z" fill="currentColor"/></svg>`;
+const BACK_SVG =
+  `<svg viewBox="0 0 24 24" width="1.15em" height="1.15em" focusable="false" aria-hidden="true">` +
+  `<path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const GRID_SVG =
+  `<svg viewBox="0 0 24 24" width="1.15em" height="1.15em" focusable="false" aria-hidden="true">` +
+  `<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" fill="currentColor"/></svg>`;
+const PERSON_SVG =
+  `<svg viewBox="0 0 24 24" width="1.15em" height="1.15em" focusable="false" aria-hidden="true">` +
+  `<path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4.2 0-7 2.1-7 5v1h14v-1c0-2.9-2.8-5-7-5Z" fill="currentColor"/></svg>`;
+const DOTS_SVG =
+  `<svg viewBox="0 0 24 24" width="1.15em" height="1.15em" focusable="false" aria-hidden="true">` +
+  `<circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg>`;
 
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2147483646;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background: rgba(24, 16, 43, 0.45);
-  backdrop-filter: blur(3px);
-  animation: seba-fade 150ms ease;
-}
-.dialog {
-  position: relative;
-  width: min(25rem, calc(100vw - 2rem));
-  max-height: calc(100vh - 2rem);
-  overflow: visible;
-  border-radius: 1.1em;
-  background: var(--seba-surface);
-  color: var(--seba-text);
-  box-shadow: var(--seba-shadow);
-  padding: 1.4rem 1.4rem 1.1rem;
-  animation: seba-pop 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
-}
-.close {
-  position: absolute;
-  top: 0.7rem;
-  inset-inline-end: 0.7rem;
-  width: 2rem;
-  height: 2rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--seba-muted);
-  font-size: 1.05rem;
-  cursor: pointer;
-}
-.close:hover { background: var(--seba-hover); color: var(--seba-text); }
-.close:focus-visible { outline: 2px solid var(--seba-ring); outline-offset: 1px; }
-.dialog h2 { margin: 0 0 0.25rem; font-size: 1.1rem; font-weight: 650; letter-spacing: -0.01em; }
-.dialog .sub { margin: 0 0 1rem; font-size: 0.86rem; color: var(--seba-muted); }
+type DialogView = "more" | "providers" | "create" | "create-other";
 
-.picker { position: relative; }
-.trigger {
-  display: flex;
-  align-items: center;
-  gap: 0.65em;
-  width: 100%;
-  padding: 0.55em 0.7em;
-  border: 1px solid var(--seba-border);
-  border-radius: 0.75em;
-  background: var(--seba-raised);
-  color: inherit;
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-  transition: border-color 120ms ease, background-color 120ms ease;
+interface ChoiceOptions {
+  title: string;
+  subtitle: string;
+  iconUri?: string;
+  glyph?: string;
+  href?: string;
+  issuer?: string;
+  action?: string;
+  badge?: string;
+  disabled?: boolean;
 }
-.trigger:hover { border-color: var(--seba-accent); }
-.trigger[aria-expanded="true"] { border-color: var(--seba-accent); }
-.trigger:focus-visible { outline: 2px solid var(--seba-ring); outline-offset: 1px; }
-.tile { display: block; width: 1.9em; height: 1.9em; border-radius: 0.55em; object-fit: contain; flex: none; }
-.pnames { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.pname { font-weight: 600; font-size: 0.95em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pdomain { font-style: normal; font-size: 0.78em; color: var(--seba-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chev { flex: none; display: inline-flex; color: var(--seba-muted); transition: transform 130ms ease; }
-.chev svg { display: block; width: 1.15em; height: 1.15em; }
-.trigger[aria-expanded="true"] .chev { transform: rotate(180deg); }
-
-.menu {
-  position: static;
-  margin: 0.4rem 0 0;
-  padding: 0.30rem;
-  list-style: none;
-  max-height: min(19rem, 55vh);
-  overflow: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  background: var(--seba-raised);
-  border: 1px solid var(--seba-border);
-  border-radius: 0.8em;
-  box-shadow: 0 16px 40px -12px rgba(27, 17, 51, 0.45);
-  animation: seba-pop 140ms cubic-bezier(0.2, 0.9, 0.3, 1.1);
-}
-.menu li {
-  display: flex;
-  align-items: center;
-  gap: 0.65em;
-  padding: 0.5em 0.6em;
-  border-radius: 0.6em;
-  cursor: pointer;
-}
-.menu li:hover, .menu li[data-active="true"] { background: var(--seba-hover); }
-.menu li[aria-selected="true"] { background: var(--seba-tile); }
-.menu .tile { width: 1.75em; height: 1.75em; }
-.menu .ok { margin-inline-start: auto; display: inline-flex; color: var(--seba-accent); visibility: hidden; }
-.menu .ok svg { display: block; width: 1.1em; height: 1.1em; }
-.menu li[aria-selected="true"] .ok { visibility: visible; }
-
-.or {
-  display: flex;
-  align-items: center;
-  gap: 0.7em;
-  margin: 0.95rem 0;
-  color: var(--seba-muted);
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--seba-border); }
-
-.manual { display: flex; gap: 0.5em; }
-.manual input {
-  flex: 1;
-  min-width: 0;
-  padding: 0.55em 0.7em;
-  border: 1px solid var(--seba-border);
-  border-radius: 0.7em;
-  background: var(--seba-raised);
-  color: inherit;
-  font: inherit;
-}
-.manual input::placeholder { color: var(--seba-muted); }
-.manual input:focus-visible { outline: 2px solid var(--seba-ring); outline-offset: 1px; border-color: var(--seba-accent); }
-.manual .continue {
-  flex: none;
-  padding: 0.55em 1em;
-  border: none;
-  border-radius: 0.7em;
-  background: linear-gradient(135deg, var(--seba-accent), var(--seba-accent-deep));
-  color: #ffffff;
-  font: inherit;
-  cursor: pointer;
-}
-.manual .continue:hover:not(:disabled) { filter: brightness(1.08); }
-.manual .continue:focus-visible { outline: 3px solid var(--seba-ring); outline-offset: 1px; }
-.manual .continue:disabled { opacity: 0.65; cursor: progress; }
-
-.notice {
-  margin: 0.7rem 0 0;
-  font-size: 0.82rem;
-  border-radius: 0.6em;
-  padding: 0.55em 0.7em;
-  background: #fdeced;
-  color: #8a1c2b;
-}
-:host([theme="dark"]) .notice { background: #3b1d25; color: #ffb4c0; }
-.signup { margin: 1rem 0 0; font-size: 0.84rem; color: var(--seba-muted); }
-.signup a { color: var(--seba-accent); font-weight: 600; text-decoration: none; }
-.signup a:hover { text-decoration: underline; }
-
-@keyframes seba-fade { from { opacity: 0; } }
-@keyframes seba-pop { from { opacity: 0; transform: translateY(-6px) scale(0.985); } }
-@media (prefers-reduced-motion: reduce) {
-  .overlay, .dialog, .menu { animation: none; }
-  .primary { transition: none; }
-}
-`;
 
 export class SebaLoginElement extends HTMLElementBase {
   static get observedAttributes(): string[] {
@@ -265,10 +85,11 @@ export class SebaLoginElement extends HTMLElementBase {
   #busy = false;
   #restoreStarted = false;
   #dialogOpen = false;
-  #menuOpen = false;
-  #activeIndex = -1;
+  #dialogView: DialogView = "more";
+  #dialogTrigger: HTMLElement | null = null;
   #errorText = "";
-  #selectedIssuer: string | null = null;
+  /** Selected WebID prefix; `undefined` = not chosen yet, `null` = custom URL. */
+  #prefixIssuer: string | null | undefined = undefined;
 
   /** Current session, or `null` when signed out. */
   get session(): Session | null {
@@ -277,40 +98,24 @@ export class SebaLoginElement extends HTMLElementBase {
 
   connectedCallback(): void {
     this.#render();
-    this.shadowRoot?.querySelector(".primary")?.addEventListener("click", this.#onPrimary);
-    this.shadowRoot?.querySelector(".close")?.addEventListener("click", this.#closeDialog);
-    this.shadowRoot?.querySelector(".trigger")?.addEventListener("click", this.#toggleMenu);
-    this.shadowRoot?.querySelector(".menu")?.addEventListener("click", this.#onMenuClick);
-    this.shadowRoot?.querySelector(".menu")?.addEventListener("keydown", this.#onMenuKeydown);
-    this.shadowRoot?.querySelector(".manual")?.addEventListener("submit", this.#onManualSubmit);
-    this.shadowRoot?.querySelectorAll(".overlay, .dialog")?.forEach((el) => {
-      el.addEventListener("keydown", this.#trapTab);
-    });
-    this.shadowRoot?.querySelector(".overlay")?.addEventListener("click", this.#onOverlayClick);
+    const root = this.shadowRoot;
+    root?.addEventListener("click", this.#onClick);
+    root?.addEventListener("submit", this.#onSubmit);
+    root?.addEventListener("change", this.#onChange);
+    root?.addEventListener("keydown", this.#onKeydown);
     void this.#restoreOrComplete();
   }
 
   disconnectedCallback(): void {
-    this.shadowRoot
-      ?.querySelectorAll(".primary, .close, .trigger, .menu, .manual, .overlay, .dialog")
-      ?.forEach((el) => {
-        el.removeEventListener("click", this.#onPrimary);
-        el.removeEventListener("click", this.#closeDialog);
-        el.removeEventListener("click", this.#toggleMenu);
-        el.removeEventListener("click", this.#onMenuClick);
-        el.removeEventListener("keydown", this.#onMenuKeydown);
-        el.removeEventListener("submit", this.#onManualSubmit);
-        el.removeEventListener("keydown", this.#trapTab);
-      });
+    const root = this.shadowRoot;
+    root?.removeEventListener("click", this.#onClick);
+    root?.removeEventListener("submit", this.#onSubmit);
+    root?.removeEventListener("change", this.#onChange);
+    root?.removeEventListener("keydown", this.#onKeydown);
   }
 
   attributeChangedCallback(name: string, _oldValue: string | null, _newValue: string | null): void {
-    if (
-      name === "client-id" ||
-      name === "redirect-uri" ||
-      name === "account" ||
-      name === "config"
-    ) {
+    if (name === "client-id" || name === "redirect-uri" || name === "account" || name === "config") {
       this.#resetClient();
       if (typeof this.isConnected === "boolean" && this.isConnected) {
         void this.#restoreOrComplete();
@@ -360,216 +165,175 @@ export class SebaLoginElement extends HTMLElementBase {
     return typeof this.getAttribute === "function" ? this.getAttribute(name) : null;
   }
 
-  #onPrimary = (): void => {
-    if (this.#session !== null) {
+  #onClick = (event: Event): void => {
+    const target = event.target instanceof Element ? event.target : null;
+    const root = this.shadowRoot;
+    if (target === null || root === null) {
+      return;
+    }
+    if (target === root.querySelector(".overlay")) {
+      this.#closeDialog();
+      return;
+    }
+    const providerHit = target.closest<HTMLElement>(".provider-hit");
+    if (providerHit?.dataset.issuer !== undefined) {
+      void this.#startLogin({ issuer: providerHit.dataset.issuer });
+      return;
+    }
+    if (target.closest(".more") !== null) {
+      this.#openDialog("more", target.closest<HTMLElement>(".more"));
+      return;
+    }
+    if (target.closest(".create-open") !== null) {
+      this.#openDialog("create", target.closest<HTMLElement>(".create-open"));
+      return;
+    }
+    if (target.closest(".dialog-close") !== null) {
+      this.#closeDialog();
+      return;
+    }
+    if (target.closest(".dialog-back") !== null) {
+      this.#dialogView = this.#dialogView === "create-other" ? "create" : "more";
+      this.#update();
+      return;
+    }
+    if (target.closest(".signout") !== null) {
       void this.logout();
       return;
     }
-    if (providerChoices(this.#providers()).length >= 2) {
-      this.#openDialog();
+    const issuerChoice = target.closest<HTMLElement>(".choice[data-issuer]");
+    if (issuerChoice?.dataset.issuer !== undefined) {
+      this.#closeDialog();
+      void this.#startLogin({ issuer: issuerChoice.dataset.issuer });
       return;
     }
-    void this.login();
+    const action = target.closest<HTMLElement>(".choice[data-action]")?.dataset.action;
+    if (action === "providers") {
+      this.#dialogView = "providers";
+      this.#update();
+      return;
+    }
+    if (action === "webid") {
+      this.#closeDialog();
+      raf(() => this.shadowRoot?.querySelector<HTMLInputElement>(".webid-input")?.focus());
+      return;
+    }
+    if (action === "create-other") {
+      this.#dialogView = "create-other";
+      this.#update();
+    }
   };
 
-  #openDialog(): void {
-    if (this.#dialogOpen) {
+  #onChange = (event: Event): void => {
+    const target = event.target as HTMLSelectElement | null;
+    if (target === null || !target.classList.contains("prefix")) {
       return;
     }
-    this.#dialogOpen = true;
+    this.#prefixIssuer = target.value === CUSTOM_PREFIX ? null : target.value;
+    this.#paintPrefix();
+  };
+
+  #onSubmit = (event: Event): void => {
+    event.preventDefault();
+    const root = this.shadowRoot;
+    const input = root?.querySelector<HTMLInputElement>(".webid-input");
+    const raw = input?.value.trim() ?? "";
+    const prefix = this.#prefixIssuer;
+    let target: { kind: "issuer" | "webId"; value: string } | null = null;
+
+    if (raw === "") {
+      if (prefix === undefined || prefix === null) {
+        this.#showError("Type your WebID, or pick a provider next to the field.");
+        return;
+      }
+      target = { kind: "issuer", value: prefix };
+    } else if (/^https?:\/\//i.test(raw)) {
+      target = classifyInput(raw);
+    } else {
+      if (prefix === undefined || prefix === null) {
+        this.#showError("Paste your full WebID URL, including https://.");
+        return;
+      }
+      target = classifyInput(`${prefix.replace(/\/$/, "")}/${raw.replace(/^\/+/, "")}`);
+    }
+
+    if (target === null) {
+      this.#showError("That does not look like a WebID. Check the address and try again.");
+      return;
+    }
+    void this.#startLogin(
+      target.kind === "issuer" ? { issuer: target.value } : { webId: target.value },
+    );
+  };
+
+  #onKeydown = (event: Event): void => {
+    if (!this.#dialogOpen) {
+      return;
+    }
+    const { key } = event as KeyboardEvent;
+    if (key === "Escape") {
+      event.preventDefault();
+      this.#closeDialog();
+      return;
+    }
+    if (key !== "Tab") {
+      return;
+    }
+    const dialog = this.shadowRoot?.querySelector<HTMLElement>(".dialog");
+    if (!dialog) {
+      return;
+    }
+    const focusables = [...dialog.querySelectorAll<HTMLElement>("button:not([disabled]), a[href]")].filter(
+      (el) => !el.hidden,
+    );
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (first === undefined || last === undefined) {
+      return;
+    }
+    const active = this.shadowRoot?.activeElement ?? null;
+    const shift = (event as KeyboardEvent).shiftKey;
+    if (shift && active === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!shift && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  async #startLogin(options: LoginOptions): Promise<void> {
+    if (options.issuer !== undefined) {
+      this.#prefixIssuer = options.issuer;
+    }
     this.#errorText = "";
+    this.#rememberIssuer(options.issuer ?? this.#prefixIssuer ?? null);
+    await this.login(options);
+  }
+
+  #openDialog(view: DialogView, trigger: Element | null): void {
+    this.#dialogOpen = true;
+    this.#dialogView = view;
+    this.#dialogTrigger = trigger instanceof HTMLElement ? trigger : null;
     this.#update();
-    const choices = providerChoices(this.#providers());
-    this.#selectLastIssuer(choices);
-    const trigger = this.shadowRoot?.querySelector<HTMLButtonElement>(".trigger");
-    raf(() => trigger?.focus());
+    raf(() => {
+      const first =
+        this.shadowRoot?.querySelector<HTMLElement>(".dialog .choice") ??
+        this.shadowRoot?.querySelector<HTMLElement>(".dialog-close");
+      first?.focus();
+    });
   }
 
-  #selectLastIssuer(choices: ProviderChoice[]): void {
-    this.#selectedIssuer = choices[0]?.issuer ?? null;
-  }
-
-  #closeDialog = (): void => {
+  #closeDialog(): void {
     if (!this.#dialogOpen) {
       return;
     }
     this.#dialogOpen = false;
-    this.#menuOpen = false;
-    this.#activeIndex = -1;
-    this.#errorText = "";
     this.#update();
-    this.shadowRoot?.querySelector<HTMLButtonElement>(".primary")?.focus();
-  };
-
-  #toggleMenu = (): void => {
-    this.#menuOpen ? this.#collapseMenu() : this.#expandMenu();
-  };
-
-  #expandMenu(): void {
-    if (this.#menuOpen) {
-      return;
-    }
-    this.#menuOpen = true;
-    const choices = providerChoices(this.#providers());
-    if (choices.length === 0) {
-      this.#menuOpen = false;
-      return;
-    }
-    const selected = this.#selectedIndex(choices);
-    this.#activeIndex = selected;
-    this.#update();
-    raf(() => this.#focusOption());
+    const trigger = this.#dialogTrigger;
+    this.#dialogTrigger = null;
+    raf(() => trigger?.focus());
   }
-
-  #collapseMenu(): void {
-    if (!this.#menuOpen) {
-      return;
-    }
-    this.#menuOpen = false;
-    this.#activeIndex = -1;
-    this.#update();
-  }
-
-  #selectedIndex(choices: ProviderChoice[]): number {
-    const selected = this.#selectedIssuer ?? choices[0]?.issuer ?? "";
-    const found = choices.findIndex((c) => c.issuer === selected);
-    return found >= 0 ? found : 0;
-  }
-
-  #focusOption(): void {
-    const options = this.shadowRoot?.querySelectorAll<HTMLLIElement>(".menu li");
-    options?.[Math.max(0, this.#activeIndex)]?.focus();
-    this.#paintActive();
-  }
-
-  #paintActive(): void {
-    const options = this.shadowRoot?.querySelectorAll<HTMLLIElement>(".menu li");
-    options?.forEach((li, i) => li.setAttribute("data-active", String(i === this.#activeIndex)));
-    const active = options?.[this.#activeIndex];
-    const menu = this.shadowRoot?.querySelector<HTMLUListElement>(".menu");
-    if (active && menu) {
-      menu.setAttribute("aria-activedescendant", active.id);
-    }
-    active?.scrollIntoView({ block: "nearest" });
-  }
-
-  #onMenuClick = (event: Event): void => {
-    const li = (event.target as HTMLElement).closest("li[data-index]");
-    if (li === null) {
-      this.#collapseMenu();
-      return;
-    }
-    const index = Number((li as HTMLElement).dataset.index);
-    const choices = providerChoices(this.#providers());
-    this.#choose(choices[index]);
-  };
-
-  #onMenuKeydown = (event: Event): void => {
-    const { key } = event as KeyboardEvent;
-    const choices = providerChoices(this.#providers());
-    if (choices.length === 0) {
-      return;
-    }
-    const cycles = (delta: number): void => {
-      event.preventDefault();
-      const count = choices.length;
-      this.#activeIndex = (this.#activeIndex + delta + count) % count;
-      this.#focusOption();
-    };
-    switch (key) {
-      case "ArrowDown":
-        return cycles(1);
-      case "ArrowUp":
-        return cycles(-1);
-      case "Home":
-        event.preventDefault();
-        this.#activeIndex = 0;
-        return this.#focusOption();
-      case "End":
-        event.preventDefault();
-        this.#activeIndex = choices.length - 1;
-        return this.#focusOption();
-      case "Enter":
-      case " ":
-        event.preventDefault();
-        return this.#choose(choices[this.#activeIndex]);
-      case "Escape":
-        event.preventDefault();
-        this.#collapseMenu();
-        return;
-      case "Tab":
-        if (this.#menuOpen) {
-          this.#menuOpen = false;
-          this.#update();
-        }
-        return;
-      default:
-        if (key.length === 1) {
-          const letter = key.toLowerCase();
-          const start = (this.#activeIndex + 1) % choices.length;
-          for (let step = 0; step < choices.length; step++) {
-            const i = (start + step) % choices.length;
-            if (choices[i] !== undefined && choices[i].name.toLowerCase().startsWith(letter)) {
-              this.#activeIndex = i;
-              this.#focusOption();
-              return;
-            }
-          }
-        }
-    }
-  };
-
-  #choose(choice: ProviderChoice | undefined): void {
-    if (choice === undefined) {
-      return;
-    }
-    // Selection only updates the field; the Continue button performs the login,
-    // so the flow is always explicit and predictable.
-    this.#selectedIssuer = choice.issuer;
-    this.#rememberIssuer(choice.issuer);
-    this.#collapseMenu();
-    this.#update();
-    raf(() => this.shadowRoot?.querySelector<HTMLButtonElement>(".continue")?.focus());
-  }
-
-  #onManualSubmit = (event: Event): void => {
-    event.preventDefault();
-    const input = this.shadowRoot?.querySelector<HTMLInputElement>(".manual input");
-    const raw = input?.value.trim() ?? "";
-    if (raw === "") {
-      const choices = providerChoices(this.#providers());
-      const chosen = this.#selectedIssuer ?? choices[0]?.issuer ?? null;
-      if (chosen === null) {
-        this.#showError("Type a WebID or a provider URL, like https://solidcommunity.net.");
-        return;
-      }
-      this.#rememberIssuer(chosen);
-      this.#closeDialog();
-      void this.login({ issuer: chosen });
-      return;
-    }
-    const target = classifyInput(raw);
-    if (target === null) {
-      this.#showError("That does not look like a URL. Include the https:// part.");
-      return;
-    }
-    const options: LoginOptions = target.kind === "issuer" ? { issuer: target.value } : { webId: target.value };
-    const rememberedIssuer =
-      target.kind === "issuer" ? target.value : resolveIssuerHint(target.value);
-    if (rememberedIssuer !== null) {
-      this.#rememberIssuer(rememberedIssuer);
-    }
-    void (async () => {
-      const session = await this.login(options);
-      if (session !== null) {
-        if (rememberedIssuer !== null) {
-          this.#rememberIssuer(rememberedIssuer);
-        }
-        this.#closeDialog();
-      }
-      this.#update();
-    })();
-  };
 
   #showError(text: string): void {
     this.#errorText = text;
@@ -584,6 +348,480 @@ export class SebaLoginElement extends HTMLElementBase {
       localStorage.setItem("seba:last-issuer", issuer);
     } catch {
       /* storage unavailable (private mode) — memory-only is fine */
+    }
+  }
+
+  #allProviders(): string[] {
+    const raw = this.#attr("providers");
+    return raw === null ? [...ALL_PROVIDERS] : parseProviders(raw);
+  }
+
+  #primaryProviders(): string[] {
+    const raw = this.#attr("providers");
+    if (raw === null) {
+      return [...PRIMARY_PROVIDERS];
+    }
+    return parseProviders(raw).slice(0, 3);
+  }
+
+  #choiceFor(issuer: string): ProviderChoice {
+    const info = providerInfo(issuer);
+    return {
+      issuer,
+      name: info.name,
+      domain: issuerDomain(issuer),
+      iconUri: info.iconUri,
+      website: info.website,
+      signup: info.signup,
+    };
+  }
+
+  #providerRow(choice: ProviderChoice): HTMLElement {
+    const row = document.createElement("div");
+    row.className = "provider";
+
+    const hit = document.createElement("button");
+    hit.type = "button";
+    hit.className = "provider-hit";
+    hit.dataset.issuer = choice.issuer;
+    hit.setAttribute("aria-label", `Sign in with ${choice.name}`);
+
+    const tile = document.createElement("img");
+    tile.className = "tile";
+    tile.alt = "";
+    tile.width = 48;
+    tile.height = 48;
+    tile.decoding = "async";
+    tile.src = choice.iconUri;
+
+    const meta = document.createElement("span");
+    meta.className = "pmeta";
+    const name = document.createElement("span");
+    name.className = "pname";
+    name.textContent = choice.name;
+
+    let site: HTMLElement;
+    const website = safeExternalHttpUrl(choice.website);
+    if (website !== null) {
+      const anchor = document.createElement("a");
+      anchor.href = website;
+      anchor.target = "_blank";
+      anchor.rel = "noopener noreferrer";
+      anchor.textContent = choice.domain;
+      anchor.title = `${choice.name} website`;
+      site = anchor;
+    } else {
+      const label = document.createElement("span");
+      label.textContent = choice.domain;
+      site = label;
+    }
+    site.className = "psite";
+    meta.append(name, site);
+
+    const chevron = document.createElement("span");
+    chevron.className = "chev";
+    chevron.setAttribute("aria-hidden", "true");
+    chevron.innerHTML = CHEVRON_SVG;
+
+    row.append(hit, tile, meta, chevron);
+    return row;
+  }
+
+  #renderPrimary(): void {
+    const container = this.shadowRoot?.querySelector<HTMLElement>(".providers");
+    if (!container) {
+      return;
+    }
+    const rows = this.#primaryProviders().map((issuer) =>
+      this.#providerRow(this.#choiceFor(issuer)),
+    );
+    if (rows.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "No Pod providers are configured for this app.";
+      container.replaceChildren(empty);
+      return;
+    }
+    container.replaceChildren(...rows);
+  }
+
+  #syncPrefix(): void {
+    const select = this.shadowRoot?.querySelector<HTMLSelectElement>(".prefix");
+    if (!select) {
+      return;
+    }
+    const providers = this.#allProviders();
+    const key = providers.join("|");
+    if (select.dataset.key !== key) {
+      const options = providers.map((issuer) => {
+        const option = document.createElement("option");
+        option.value = issuer;
+        option.textContent = issuerDomain(issuer);
+        return option;
+      });
+      const custom = document.createElement("option");
+      custom.value = CUSTOM_PREFIX;
+      custom.textContent = "Custom URL";
+      select.replaceChildren(...options, custom);
+      select.dataset.key = key;
+    }
+    if (this.#prefixIssuer === undefined) {
+      const remembered = lastIssuer();
+      this.#prefixIssuer =
+        remembered !== null && providers.includes(remembered) ? remembered : (providers[0] ?? null);
+    } else if (this.#prefixIssuer !== null && !providers.includes(this.#prefixIssuer)) {
+      this.#prefixIssuer = providers[0] ?? null;
+    }
+    select.value =
+      this.#prefixIssuer === null || this.#prefixIssuer === undefined
+        ? CUSTOM_PREFIX
+        : this.#prefixIssuer;
+  }
+
+  #paintPrefix(): void {
+    const root = this.shadowRoot;
+    const icon = root?.querySelector<HTMLImageElement>(".prefix-icon");
+    const input = root?.querySelector<HTMLInputElement>(".webid-input");
+    const issuer = this.#prefixIssuer;
+    const custom = issuer === null || issuer === undefined;
+    if (icon) {
+      icon.hidden = custom;
+      if (!custom) {
+        icon.src = providerInfo(issuer).iconUri;
+      }
+    }
+    if (input) {
+      input.placeholder = custom ? "https://your-pod.example/profile/card#me" : "profile/card#me";
+    }
+  }
+
+  #choice(options: ChoiceOptions): HTMLElement {
+    let element: HTMLElement;
+    let button: HTMLButtonElement | null = null;
+    if (options.href !== undefined) {
+      const anchor = document.createElement("a");
+      anchor.href = options.href;
+      anchor.target = "_blank";
+      anchor.rel = "noopener noreferrer";
+      element = anchor;
+    } else {
+      button = document.createElement("button");
+      button.type = "button";
+      element = button;
+    }
+    element.className = "choice";
+    if (options.issuer !== undefined) {
+      element.dataset.issuer = options.issuer;
+    }
+    if (options.action !== undefined) {
+      element.dataset.action = options.action;
+    }
+    if (button !== null) {
+      button.disabled = options.disabled === true;
+    }
+
+    let icon: HTMLElement;
+    if (options.iconUri !== undefined) {
+      const image = document.createElement("img");
+      image.className = "choice-icon";
+      image.alt = "";
+      image.width = 48;
+      image.height = 48;
+      image.decoding = "async";
+      image.src = options.iconUri;
+      icon = image;
+    } else {
+      const glyph = document.createElement("span");
+      glyph.className = "choice-icon glyph";
+      glyph.innerHTML = options.glyph ?? DOTS_SVG;
+      icon = glyph;
+    }
+
+    const meta = document.createElement("span");
+    meta.className = "choice-meta";
+    const title = document.createElement("span");
+    title.className = "choice-title";
+    title.textContent = options.title;
+    const subtitle = document.createElement("span");
+    subtitle.className = "choice-sub";
+    subtitle.textContent = options.subtitle;
+    meta.append(title, subtitle);
+
+    element.append(icon, meta);
+    if (options.badge !== undefined) {
+      const badge = document.createElement("span");
+      badge.className = "badge";
+      badge.textContent = options.badge;
+      element.append(badge);
+    }
+    const chevron = document.createElement("span");
+    chevron.className = "chev";
+    chevron.setAttribute("aria-hidden", "true");
+    chevron.innerHTML = CHEVRON_SVG;
+    element.append(chevron);
+    return element;
+  }
+
+  #renderDialog(): void {
+    const root = this.shadowRoot;
+    if (!root) {
+      return;
+    }
+    const titles: Record<DialogView, [string, string]> = {
+      more: ["Sign in to your Pod", "Choose how you want to continue."],
+      providers: ["Choose a Pod provider", "We'll take you to your provider to sign in."],
+      create: ["Create a Solid Pod", "Pick a provider to create your Pod."],
+      "create-other": ["More Pod providers", "Choose where you want to create your Pod."],
+    };
+    const [titleText, subtitleText] = titles[this.#dialogView];
+    const title = root.querySelector<HTMLElement>("#seba-dialog-title");
+    const subtitle = root.querySelector<HTMLElement>(".dsub");
+    if (title) {
+      title.textContent = titleText;
+    }
+    if (subtitle) {
+      subtitle.textContent = subtitleText;
+    }
+    const back = root.querySelector<HTMLButtonElement>(".dialog-back");
+    if (back) {
+      back.hidden = this.#dialogView === "more" || this.#dialogView === "create";
+    }
+    const body = root.querySelector<HTMLElement>(".dbody");
+    if (!body) {
+      return;
+    }
+    body.replaceChildren();
+
+    if (this.#dialogView === "more") {
+      body.append(
+        this.#choice({
+          title: "Choose a Pod provider",
+          subtitle: "Browse every provider SEBA supports",
+          glyph: GRID_SVG,
+          action: "providers",
+        }),
+        this.#choice({
+          title: "Use your WebID",
+          subtitle: "We'll discover your provider automatically",
+          glyph: PERSON_SVG,
+          action: "webid",
+        }),
+      );
+    } else if (this.#dialogView === "providers") {
+      for (const issuer of this.#allProviders()) {
+        const choice = this.#choiceFor(issuer);
+        body.append(
+          this.#choice({
+            title: choice.name,
+            subtitle: choice.domain,
+            iconUri: choice.iconUri,
+            issuer: choice.issuer,
+          }),
+        );
+      }
+    } else if (this.#dialogView === "create") {
+      for (const issuer of this.#primaryProviders()) {
+        const choice = this.#choiceFor(issuer);
+        const href = safeExternalHttpUrl(choice.signup ?? choice.website) ?? undefined;
+        body.append(
+          this.#choice({
+            title: choice.name,
+            subtitle: `Create a Pod at ${choice.domain}`,
+            iconUri: choice.iconUri,
+            href,
+            badge: "Create",
+            disabled: href === undefined,
+          }),
+        );
+      }
+      body.append(
+        this.#choice({
+          title: "Other provider",
+          subtitle: "Browse more Pod providers",
+          glyph: DOTS_SVG,
+          action: "create-other",
+        }),
+      );
+    } else {
+      const primary = new Set(this.#primaryProviders());
+      const remaining = this.#allProviders().filter((issuer) => !primary.has(issuer));
+      for (const issuer of remaining) {
+        const choice = this.#choiceFor(issuer);
+        const href = safeExternalHttpUrl(choice.signup ?? choice.website) ?? undefined;
+        body.append(
+          this.#choice({
+            title: choice.name,
+            subtitle: choice.domain,
+            iconUri: choice.iconUri,
+            href,
+            badge: "Create",
+            disabled: href === undefined,
+          }),
+        );
+      }
+      if (remaining.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "empty";
+        empty.textContent = "No other providers are configured.";
+        body.append(empty);
+      }
+    }
+
+    const foot = root.querySelector<HTMLElement>(".dfoot");
+    if (foot) {
+      if (this.#dialogView === "create" || this.#dialogView === "create-other") {
+        const link = document.createElement("a");
+        link.href =
+          safeExternalHttpUrl(this.#attr("get-a-pod")) ?? "https://solidproject.org/get_a_pod";
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = "Learn more about Solid Pods";
+        foot.replaceChildren(link);
+        foot.hidden = false;
+      } else {
+        foot.replaceChildren();
+        foot.hidden = true;
+      }
+    }
+  }
+
+  #render(): void {
+    if (typeof this.attachShadow !== "function") {
+      return;
+    }
+    const root = this.shadowRoot ?? this.attachShadow({ mode: "open" });
+    if (root.childNodes.length > 0) {
+      return;
+    }
+    root.innerHTML =
+      `<style>${CARD_STYLES}</style>` +
+      `<section class="card" part="card" aria-labelledby="seba-card-title">` +
+      `<div class="signed-out">` +
+      `<header class="head">` +
+      `<img class="brand" alt="" width="48" height="48" decoding="async">` +
+      `<div><h2 class="title" id="seba-card-title">Sign in to your Pod</h2>` +
+      `<p class="sub">Choose your Pod provider to continue.</p></div>` +
+      `</header>` +
+      `<div class="providers" role="group" aria-label="Pod providers"></div>` +
+      `<button class="more" type="button" aria-haspopup="dialog" aria-label="More sign-in options">` +
+      `<span class="more-dots" aria-hidden="true">&#8943;</span>` +
+      `<span class="more-text">More options</span></button>` +
+      `<p class="create">New to Solid? <button class="create-open" type="button">Get a Pod</button></p>` +
+      `<div class="or" aria-hidden="true"><span>or</span></div>` +
+      `<form class="webid-form">` +
+      `<label class="field-label" for="seba-webid">Continue with your WebID</label>` +
+      `<div class="combo">` +
+      `<span class="prefix-wrap">` +
+      `<img class="prefix-icon" alt="" width="48" height="48" decoding="async">` +
+      `<select class="prefix" aria-label="Pod provider for your WebID"></select>` +
+      `<span class="prefix-chev" aria-hidden="true">${CHEVRON_DOWN_SVG}</span>` +
+      `</span>` +
+      `<input class="webid-input" id="seba-webid" name="webid" type="text" inputmode="url" ` +
+      `autocomplete="off" spellcheck="false" placeholder="profile/card#me" aria-label="WebID">` +
+      `</div>` +
+      `<button class="continue" type="submit">Continue</button>` +
+      `<p class="notice" role="alert" hidden></p>` +
+      `</form>` +
+      `<p class="trust">` +
+      `<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">` +
+      `<path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 1 1 6 0v3H9Z" fill="currentColor"/>` +
+      `</svg>` +
+      `<span>Your password never leaves your provider.</span>` +
+      `</p>` +
+      `</div>` +
+      `<div class="signed-in" hidden>` +
+      `<div class="account-head">` +
+      `<span class="account-mark" aria-hidden="true">${PERSON_SVG}</span>` +
+      `<div><p class="eyebrow">Signed in</p>` +
+      `<p class="account-title">Your Pod is connected</p></div>` +
+      `</div>` +
+      `<p class="account-webid"></p>` +
+      `<button class="signout" type="button">Sign out</button>` +
+      `</div>` +
+      `</section>` +
+      `<div class="overlay" part="overlay" hidden>` +
+      `<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="seba-dialog-title">` +
+      `<div class="dhead">` +
+      `<button class="dialog-back" type="button" aria-label="Back" hidden>${BACK_SVG}</button>` +
+      `<h2 id="seba-dialog-title">Sign in to your Pod</h2>` +
+      `<button class="dialog-close" type="button" aria-label="Close">&#10005;</button>` +
+      `</div>` +
+      `<p class="dsub"></p>` +
+      `<div class="dbody"></div>` +
+      `<p class="dfoot" hidden></p>` +
+      `</div>` +
+      `</div>`;
+    this.#update();
+  }
+
+  #update(): void {
+    const root = this.shadowRoot;
+    if (!root) {
+      return;
+    }
+    const signedIn = this.#session !== null;
+    const signedOut = root.querySelector<HTMLElement>(".signed-out");
+    const account = root.querySelector<HTMLElement>(".signed-in");
+    if (signedOut) {
+      signedOut.hidden = signedIn;
+    }
+    if (account) {
+      account.hidden = !signedIn;
+    }
+
+    const card = root.querySelector<HTMLElement>(".card");
+    card?.setAttribute("aria-busy", this.#busy ? "true" : "false");
+
+    if (signedIn && this.#session !== null) {
+      const webId = root.querySelector<HTMLElement>(".account-webid");
+      if (webId) {
+        webId.textContent = this.#session.webId;
+      }
+    } else {
+      const title = root.querySelector<HTMLElement>(".title");
+      if (title) {
+        title.textContent = this.#attr("label") ?? "Sign in to your Pod";
+      }
+      const brand = root.querySelector<HTMLImageElement>(".brand");
+      if (brand) {
+        const requested = this.#attr("logo");
+        if (requested === "none") {
+          brand.hidden = true;
+        } else {
+          brand.hidden = false;
+          brand.src = sebaLogoImage(
+            requested !== null && isSebaLogoVariant(requested) ? requested : "primary",
+          );
+        }
+      }
+      this.#renderPrimary();
+      this.#syncPrefix();
+      this.#paintPrefix();
+      const notice = root.querySelector<HTMLElement>(".notice");
+      if (notice) {
+        notice.hidden = this.#errorText === "";
+        notice.textContent = this.#errorText;
+      }
+    }
+
+    root
+      .querySelectorAll<HTMLButtonElement>(".provider-hit, .more, .create-open, .continue, .signout")
+      .forEach((button) => {
+        button.disabled = this.#busy;
+      });
+    root
+      .querySelector<HTMLElement>(".more")
+      ?.setAttribute(
+        "aria-expanded",
+        String(this.#dialogOpen && (this.#dialogView === "more" || this.#dialogView === "providers")),
+      );
+
+    const overlay = root.querySelector<HTMLElement>(".overlay");
+    if (overlay) {
+      overlay.hidden = !this.#dialogOpen;
+      if (this.#dialogOpen) {
+        this.#renderDialog();
+      }
     }
   }
 
@@ -642,6 +880,7 @@ export class SebaLoginElement extends HTMLElementBase {
     this.#session = event.session;
     if (event.reason === "login") {
       this.#rememberIssuer(this.#activeIssuer());
+      this.#closeDialog();
     }
     this.#update();
     if (event.reason === "expired") {
@@ -693,283 +932,13 @@ export class SebaLoginElement extends HTMLElementBase {
     };
   }
 
-  #providers(): string[] {
-    const raw = this.#attr("providers");
-    return raw === null ? [...DEFAULT_PROVIDERS] : parseProviders(raw);
-  }
-
   #activeIssuer(): string | null {
     const remembered = lastIssuer();
-    if (remembered !== null && this.#providers().includes(remembered)) {
+    if (remembered !== null && this.#allProviders().includes(remembered)) {
       return remembered;
     }
     return null;
   }
-
-  #defaultButtonLabel(): string {
-    const providers = this.#providers();
-    const remembered = lastIssuer();
-    const chosen =
-      remembered !== null && providers.includes(remembered)
-        ? remembered
-        : providers.length === 1
-          ? providers[0] ?? null
-          : null;
-    if (chosen === null) {
-      return "Sign in with Solid";
-    }
-    const info = providerInfo(chosen);
-    const resuming = remembered !== null && providers.includes(remembered) && providers.length >= 2;
-    return `${resuming ? "Continue" : "Sign in"} with ${info.name}`;
-  }
-
-  #render(): void {
-    if (typeof this.attachShadow !== "function") {
-      return;
-    }
-    const root = this.shadowRoot ?? this.attachShadow({ mode: "open" });
-    if (root.childNodes.length > 0) {
-      return;
-    }
-    root.innerHTML =
-      `<style>${STYLES}</style>` +
-      `<button part="button" class="primary" type="button">` +
-      `<img class="logo" part="logo" alt="" width="48" height="48" decoding="async">` +
-      `<span class="label" part="label"></span>` +
-      `</button>` +
-      `<div class="overlay" part="overlay" hidden>` +
-      `<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="seba-dialog-title">` +
-      `<button class="close" type="button" aria-label="Close sign-in dialog">\u2715</button>` +
-      `<h2 id="seba-dialog-title">Sign in to your Pod</h2>` +
-      `<p class="sub">Pick where your Pod lives — or paste your WebID and we take it from there.</p>` +
-      `<div class="picker">` +
-      `<button class="trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Choose your Pod provider">` +
-      `<img class="tile" alt="" width="48" height="48" decoding="async">` +
-      `<span class="pnames"><span class="pname"></span><i class="pdomain"></i></span>` +
-      `<span class="chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="1em" height="1em" focusable="false"><path d="M7 10l5 5 5-5z" fill="currentColor"/></svg></span>` +
-      `</button>` +
-      `<ul class="menu" role="listbox" aria-label="Pod provider" data-owner="seba" hidden></ul>` +
-      `</div>` +
-      `<div class="or" aria-hidden="true"><span>or</span></div>` +
-      `<form class="manual">` +
-      `<input class="webid-input" name="webid" type="text" inputmode="url" autocomplete="off" spellcheck="false" ` +
-      `placeholder="WebID or provider URL\u2026" aria-label="WebID or provider URL">` +
-      `<button class="continue" type="submit">Continue</button>` +
-      `</form>` +
-      `<p class="notice" role="alert" hidden></p>` +
-      `<p class="signup">New to Solid? <a class="podlink" target="_blank" rel="noopener noreferrer">Create a Pod \u2192</a></p>` +
-      `</div>` +
-      `</div>`;
-    this.#update();
-  }
-
-  #update(): void {
-    const root = this.shadowRoot;
-    if (!root) {
-      return;
-    }
-    const button = root.querySelector<HTMLButtonElement>(".primary");
-    if (button) {
-      const authenticated = this.#session !== null;
-      button.dataset.state = authenticated ? "authenticated" : "anonymous";
-      button.disabled = this.#busy;
-      button.setAttribute("aria-busy", this.#busy ? "true" : "false");
-      button.setAttribute("aria-expanded", this.#dialogOpen ? "true" : "false");
-      const label = button.querySelector(".label");
-      if (label) {
-        label.textContent = authenticated ? "Sign out" : (this.#attr("label") ?? this.#defaultButtonLabel());
-      }
-      const logo = button.querySelector<HTMLImageElement>(".logo");
-      if (logo) {
-        const requested = this.#attr("logo");
-        if (requested === "none") {
-          logo.setAttribute("hidden", "");
-        } else {
-          logo.removeAttribute("hidden");
-          const variant = requested !== null && isSebaLogoVariant(requested) ? requested : this.#defaultVariant();
-          logo.src = sebaLogoImage(variant);
-          logo.alt = "";
-        }
-      }
-    }
-
-    const overlay = root.querySelector<HTMLElement>(".overlay");
-    if (overlay) {
-      overlay.hidden = !this.#dialogOpen;
-      if (this.#dialogOpen) {
-        this.#renderTrigger();
-        this.#renderMenu();
-        this.#renderSignup();
-        const notice = root.querySelector<HTMLElement>(".notice");
-        if (notice) {
-          notice.hidden = this.#errorText === "";
-          notice.textContent = this.#errorText;
-        }
-        const continueBtn = root.querySelector<HTMLButtonElement>(".continue");
-        if (continueBtn) {
-          continueBtn.disabled = this.#busy;
-        }
-      }
-    }
-  }
-
-  #renderTrigger(): void {
-    const root = this.shadowRoot;
-    const trigger = root?.querySelector<HTMLButtonElement>(".trigger");
-    if (!trigger) {
-      return;
-    }
-    const choices = providerChoices(this.#providers());
-    const selIdx = this.#selectedIssuer === null ? -1 : choices.findIndex((c) => c.issuer === this.#selectedIssuer);
-    const index = selIdx >= 0 ? selIdx : 0;
-    const showTrigger = choices.length >= 2;
-    trigger.hidden = !showTrigger;
-    const picker = trigger.parentElement;
-    const menu = root?.querySelector<HTMLUListElement>(".menu");
-    if (picker) {
-      picker.hidden = !showTrigger;
-    }
-    if (menu) {
-      menu.hidden = !showTrigger || !this.#menuOpen;
-    }
-    const or = root?.querySelector<HTMLElement>(".or");
-    if (or) {
-      or.hidden = !showTrigger;
-    }
-    if (!showTrigger) {
-      return;
-    }
-    const choice = choices[index];
-    if (choice) {
-      const tile = trigger.querySelector<HTMLImageElement>(".tile");
-      const pname = trigger.querySelector<HTMLElement>(".pname");
-      const pdomain = trigger.querySelector<HTMLElement>(".pdomain");
-      if (tile) {
-        tile.src = choice.iconUri;
-      }
-      if (pname) {
-        pname.textContent = choice.name;
-        pname.dataset.issuer = choice.issuer;
-      }
-      if (pdomain) {
-        pdomain.textContent = choice.domain;
-      }
-    }
-    trigger.setAttribute("aria-expanded", this.#menuOpen ? "true" : "false");
-  }
-
-  #renderMenu(): void {
-    const root = this.shadowRoot;
-    const menu = root?.querySelector<HTMLUListElement>(".menu");
-    if (!menu || menu.hidden) {
-      return;
-    }
-    const choices = providerChoices(this.#providers());
-    const selectedIssuer = this.#selectedIssuer ?? choices[0]?.issuer ?? "";
-    const options = choices.map((choice, index) => {
-      const li = document.createElement("li");
-      li.id = `seba-menu-opt-${index}`;
-      li.setAttribute("role", "option");
-      li.dataset.index = String(index);
-      li.tabIndex = -1;
-      li.setAttribute("aria-selected", String(choice.issuer === selectedIssuer));
-
-      const img = document.createElement("img");
-      img.className = "tile";
-      img.alt = "";
-      img.width = 48;
-      img.height = 48;
-      img.decoding = "async";
-      img.src = choice.iconUri;
-
-      const names = document.createElement("span");
-      names.className = "pnames";
-      const pname = document.createElement("span");
-      pname.className = "pname";
-      pname.textContent = choice.name;
-      const pdomain = document.createElement("i");
-      pdomain.className = "pdomain";
-      pdomain.textContent = choice.domain;
-      names.append(pname, pdomain);
-
-      const ok = document.createElement("span");
-      ok.className = "ok";
-      ok.setAttribute("aria-hidden", "true");
-      ok.innerHTML =
-        `<svg viewBox="0 0 24 24" width="1em" height="1em" focusable="false"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" fill="currentColor"/></svg>`;
-
-      li.append(img, names, ok);
-      return li;
-    });
-    menu.replaceChildren(...options);
-  }
-
-  #renderSignup(): void {
-    const root = this.shadowRoot;
-    const link = root?.querySelector<HTMLAnchorElement>(".podlink");
-    if (!link) {
-      return;
-    }
-    link.href = safeExternalHttpUrl(this.#attr("get-a-pod")) ?? "https://solidproject.org/get_a_pod";
-  }
-
-  #defaultVariant(): SebaLogoVariant {
-    const requested = this.#attr("logo");
-    if (requested !== null && isSebaLogoVariant(requested)) {
-      return requested;
-    }
-    // The sign-in button paints a purple gradient in every theme, so the bare
-    // white artwork reads cleanly on it; `inverse` keeps its dark box.
-    return "white";
-  }
-
-  #trapTab = (event: Event): void => {
-    if (event.defaultPrevented) {
-      return;
-    }
-    const { key } = event as KeyboardEvent;
-    if (key !== "Escape" && key !== "Tab") {
-      return;
-    }
-    if (key === "Escape") {
-      if (this.#menuOpen) {
-        this.#collapseMenu();
-      } else {
-        event.preventDefault();
-        this.#closeDialog();
-      }
-      return;
-    }
-    const focusables = [...(this.shadowRoot?.querySelectorAll<HTMLElement>(
-      ".dialog .close, .dialog .trigger, .dialog input, .dialog .continue, .dialog .podlink," +
-      (this.#menuOpen ? " .dialog .menu li" : ""),
-    ) ?? [])].filter(
-      (el) =>
-        (el.offsetParent !== null && el.tagName !== "LI") ||
-        (this.#menuOpen && el.tagName === "LI"),
-    );
-    if (focusables.length === 0) {
-      return;
-    }
-    const first = focusables[0] as HTMLElement;
-    const last = (focusables[focusables.length - 1] ?? first) as HTMLElement;
-    const active = this.shadowRoot?.activeElement ?? null;
-    const shift = (event as KeyboardEvent).shiftKey;
-    if (shift && active === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!shift && active === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  };
-
-  #onOverlayClick = (event: Event): void => {
-    if (event.target === this.shadowRoot?.querySelector(".overlay")) {
-      event.preventDefault();
-      this.#closeDialog();
-    }
-  };
 
   #emit(type: string, session: Session | null): void {
     if (typeof this.dispatchEvent !== "function") {
@@ -979,10 +948,14 @@ export class SebaLoginElement extends HTMLElementBase {
   }
 
   #fail(error: unknown): void {
+    this.#errorText = error instanceof Error ? error.message : String(error);
+    this.#update();
     if (typeof this.dispatchEvent !== "function") {
       return;
     }
-    this.dispatchEvent(new CustomEvent("seba:error", { detail: { error }, bubbles: true, composed: true }));
+    this.dispatchEvent(
+      new CustomEvent("seba:error", { detail: { error }, bubbles: true, composed: true }),
+    );
   }
 }
 
@@ -1005,7 +978,7 @@ function currentPageUrl(): string | null {
   return url.href;
 }
 
-/** A provider rendering for the picker: brand name, domain and tile artwork. */
+/** A provider rendering for the card: brand name, domain, site and artwork. */
 export interface ProviderChoice {
   /** Absolute issuer URL. */
   readonly issuer: string;
@@ -1015,10 +988,14 @@ export interface ProviderChoice {
   readonly domain: string;
   /** Inline SVG tile, ready for `<img src>`. */
   readonly iconUri: string;
+  /** Public provider website, or `null` when unknown. */
+  readonly website: string | null;
+  /** Account sign-up URL, or `null` when unknown. */
+  readonly signup: string | null;
 }
 
 /**
- * Turn the raw `providers` list into picker choices, pinning the remembered
+ * Turn the raw `providers` list into card choices, pinning the remembered
  * issuer first so returning users find their last Pod provider at the top.
  */
 export function providerChoices(providers: string[]): ProviderChoice[] {
@@ -1031,7 +1008,14 @@ export function providerChoices(providers: string[]): ProviderChoice[] {
   }
   return providers.map((issuer) => {
     const info = providerInfo(issuer);
-    return { issuer, name: info.name, domain: issuerDomain(issuer), iconUri: info.iconUri };
+    return {
+      issuer,
+      name: info.name,
+      domain: issuerDomain(issuer),
+      iconUri: info.iconUri,
+      website: info.website,
+      signup: info.signup,
+    };
   });
 }
 
@@ -1077,25 +1061,6 @@ export function classifyInput(
     return { kind: "issuer", value: url.href };
   }
   return { kind: "webId", value: url.href };
-}
-
-/** Issuer URLs of the curated provider table, for origin matching. */
-function providerKeys(): Set<string> {
-  return new Set(Object.keys(PROVIDER_INFO));
-}
-
-/** Issuer hint for a typed WebID: its origin when that origin is a known provider. */
-function resolveIssuerHint(value: string): string | null {
-  try {
-    const url = new URL(value);
-    const originIssuer = url.origin + "/";
-    if (providerKeys().has(originIssuer)) {
-      return originIssuer;
-    }
-  } catch {
-    /* handled by classifyInput */
-  }
-  return null;
 }
 
 /**

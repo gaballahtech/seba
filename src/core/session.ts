@@ -20,6 +20,7 @@ import type {
   PersistedKey,
   PersistedSession,
   Session,
+  SessionChangeEvent,
   SessionChangeListener,
   SessionChangeReason,
   SessionStorageAdapter,
@@ -87,6 +88,8 @@ export class SessionManager {
   #state: SessionState | null = null;
   #refreshing: Promise<void> | null = null;
   #expiredNotified = false;
+  /** Session as of the previous transition, reported as `previousSession`. */
+  #previousSession: Session | null = null;
   /** Deduplicate tolerance-applied events per (issuer, rule) per session lifetime (T8b). */
   #firedTolerances = new Set<string>();
 
@@ -572,11 +575,18 @@ export class SessionManager {
   /** Emit a transition; listener failures never break the session flow. */
   #emit(reason: SessionChangeReason): void {
     const listener = this.#options.onSessionChange;
+    const session = this.toPublicSession();
+    const event: SessionChangeEvent = {
+      reason,
+      session,
+      previousSession: this.#previousSession,
+    };
+    this.#previousSession = session;
     if (listener === undefined) {
       return;
     }
     try {
-      listener({ reason, session: this.toPublicSession() });
+      listener(event);
     } catch {
       // Application callbacks must not interrupt session handling.
     }

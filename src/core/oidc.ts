@@ -68,19 +68,31 @@ export function randomToken(byteLength = 32): string {
 }
 
 /**
+ * Draw one character from the PKCE alphabet without modulo bias.
+ *
+ * Rejection sampling discards the top `256 % alphabet.length` byte values so every
+ * character is equally likely (a plain `byte % 66` would favour the first 58 symbols).
+ */
+function randomPkceChar(): string {
+  const limit = 256 - (256 % PKCE_ALPHABET.length);
+  for (;;) {
+    const byte = new Uint8Array(1);
+    crypto.getRandomValues(byte);
+    const value = byte[0] as number;
+    if (value < limit) {
+      return PKCE_ALPHABET.charAt(value % PKCE_ALPHABET.length);
+    }
+  }
+}
+
+/**
  * Create a PKCE S256 verifier and challenge.
  *
  * The verifier uses only the RFC 7636 alphabet and is 43 characters long; the challenge
  * is `base64url(SHA-256(ASCII(verifier)))` with `code_challenge_method=S256`.
  */
 export async function createPkcePair(): Promise<PkcePair> {
-  const verifier = Array.from({ length: 43 }, () => {
-    const byte = new Uint8Array(1);
-    crypto.getRandomValues(byte);
-    // Rejection-free modulo bias is acceptable here: the alphabet is not a power of two,
-    // but 43 characters of 64-symbol alphabet still carry ~258 bits of entropy.
-    return PKCE_ALPHABET.charAt((byte[0] as number) % PKCE_ALPHABET.length);
-  }).join("");
+  const verifier = Array.from({ length: 43 }, () => randomPkceChar()).join("");
   return { codeVerifier: verifier, codeChallenge: await pkceChallenge(verifier) };
 }
 
@@ -442,6 +454,57 @@ export function applyComplianceTolerances(
 }
 
 /**
+ * Keys for the one-time warnings emitted when a compliance tolerance is applied.
+ *
+ * Warnings are de-duplicated per process (not per client instance) so an application
+ * that talks to several non-compliant providers still sees each distinct warning once.
+ */
+const WARNING_KEYS = {
+  audience: "allowNonCompliantAudience",
+  cnf: "allowNonCompliantCnf",
+} as const;
+
+/** Warnings already emitted in this process. */
+const warned = new Set<string>();
+
+/** Emit a warning at most once per process for the given key. */
+function warnOnce(key: string, message: string): void {
+  if (warned.has(key)) {
+    return;
+  }
+  warned.add(key);
+  console.warn(message);
+}
+
+/** Whether the `allowNonCompliantAudience` warning has already been emitted. */
+export function hasNonCompliantAudienceWarned(): boolean {
+  return warned.has(WARNING_KEYS.audience);
+}
+
+/** Reset the `allowNonCompliantAudience` warning latch (used by tests). */
+export function setNonCompliantAudienceWarned(value: boolean): void {
+  if (value) {
+    warned.add(WARNING_KEYS.audience);
+  } else {
+    warned.delete(WARNING_KEYS.audience);
+  }
+}
+
+/** Whether the `allowNonCompliantCnf` warning has already been emitted. */
+export function hasNonCompliantCnfWarned(): boolean {
+  return warned.has(WARNING_KEYS.cnf);
+}
+
+/** Reset the `allowNonCompliantCnf` warning latch (used by tests). */
+export function setNonCompliantCnfWarned(value: boolean): void {
+  if (value) {
+    warned.add(WARNING_KEYS.cnf);
+  } else {
+    warned.delete(WARNING_KEYS.cnf);
+  }
+}
+
+/**
  * Validate an ID token and derive the authenticated identity.
  *
  * Validation: signature against the provider JWKS, `iss`, `aud` (including `solid` when
@@ -450,26 +513,6 @@ export function applyComplianceTolerances(
  *
  * @param input - Token, provider configuration, client identity and expectations.
  */
-let nonCompliantAudienceWarned = false;
-
-export function hasNonCompliantAudienceWarned(): boolean {
-  return nonCompliantAudienceWarned;
-}
-
-export function setNonCompliantAudienceWarned(value: boolean): void {
-  nonCompliantAudienceWarned = value;
-}
-
-let nonCompliantCnfWarned = false;
-
-export function hasNonCompliantCnfWarned(): boolean {
-  return nonCompliantCnfWarned;
-}
-
-export function setNonCompliantCnfWarned(value: boolean): void {
-  nonCompliantCnfWarned = value;
-}
-
 export async function validateIdToken(input: {
   idToken: string;
   configuration: OIDCConfiguration;
@@ -527,14 +570,12 @@ export async function validateIdToken(input: {
       );
     }
     input.onToleranceApplied?.("allowNonCompliantAudience");
-    if (!hasNonCompliantAudienceWarned()) {
-      setNonCompliantAudienceWarned(true);
-      console.warn(
-        "[SEBA] WARNING: Accepting an ID token without \"solid\" in aud because " +
-          "allowNonCompliantAudience is enabled. This weakens Solid-OIDC §8.1 audience " +
-          "guarantees. Disable this flag once your provider is compliant.",
-      );
-    }
+    warnOnce(
+      WARNING_KEYS.audience,
+      "[SEBA] WARNING: Accepting an ID token without \"solid\" in aud because " +
+        "allowNonCompliantAudience is enabled. This weakens Solid-OIDC §8.1 audience " +
+        "guarantees. Disable this flag once your provider is compliant.",
+    );
   }
 
   if (input.nonce !== undefined && payload["nonce"] !== input.nonce) {
@@ -605,15 +646,13 @@ async function checkDpopBinding(
   if (input.requireDpopBinding === true) {
     if (input.allowNonCompliantCnf === true) {
       input.onToleranceApplied?.("allowNonCompliantCnf");
-      if (!hasNonCompliantCnfWarned()) {
-        setNonCompliantCnfWarned(true);
-        console.warn(
-          "[SEBA] WARNING: Accepting an ID token without \"cnf.jkt\" because " +
-            "allowNonCompliantCnf is enabled. This weakens Solid-OIDC §8.1 DPoP-binding " +
-            "guarantees on the ID token; DPoP proofs remain mandatory on every request. " +
-            "Disable this flag once your provider is compliant.",
-        );
-      }
+      warnOnce(
+        WARNING_KEYS.cnf,
+        "[SEBA] WARNING: Accepting an ID token without \"cnf.jkt\" because " +
+          "allowNonCompliantCnf is enabled. This weakens Solid-OIDC §8.1 DPoP-binding " +
+          "guarantees on the ID token; DPoP proofs remain mandatory on every request. " +
+          "Disable this flag once your provider is compliant.",
+      );
       return;
     }
     throw new SebaAuthError(

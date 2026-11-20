@@ -745,6 +745,10 @@ function resolveIri(value: string, base: string): string {
 /**
  * Parse an HTTP `Link` header and return the targets with the requested relation.
  *
+ * The parser is quote-aware: commas and semicolons inside `<…>` targets or inside
+ * quoted parameter values do not split entries, so real-world headers such as
+ * `<https://a.example/x?y=1,2>; rel="next"` are handled correctly.
+ *
  * @param header - Raw `Link` header value, when present.
  * @param relation - Relation URI to match.
  */
@@ -753,26 +757,89 @@ export function parseLinkHeader(header: string | null, relation: string): string
     return [];
   }
   const targets: string[] = [];
-  const parts = header.split(/,(?=\s*<)/);
-  for (const part of parts) {
-    const match = /^\s*<([^>]*)>(.*)$/.exec(part);
-    if (match === null) {
+  const length = header.length;
+  let index = 0;
+
+  while (index < length) {
+    // Skip separators between entries.
+    while (index < length && (header[index] === "," || /\s/.test(header[index] as string))) {
+      index += 1;
+    }
+    if (index >= length) {
+      break;
+    }
+    if (header[index] !== "<") {
+      // Malformed entry: skip to the next comma.
+      const next = header.indexOf(",", index);
+      if (next === -1) {
+        break;
+      }
+      index = next + 1;
       continue;
     }
-    const target = match[1] as string;
-    const params = match[2] ?? "";
-    for (const param of params.split(";")) {
-      const [rawName, rawValue] = param.split("=");
-      if (rawName === undefined || rawValue === undefined) {
+    const targetEnd = header.indexOf(">", index + 1);
+    if (targetEnd === -1) {
+      break;
+    }
+    const target = header.slice(index + 1, targetEnd);
+    index = targetEnd + 1;
+
+    const rels: string[] = [];
+    while (index < length) {
+      // Skip whitespace between parameters.
+      while (index < length && /\s/.test(header[index] as string)) {
+        index += 1;
+      }
+      if (index >= length || header[index] === ",") {
+        if (index < length) {
+          index += 1;
+        }
+        break;
+      }
+      if (header[index] === ";") {
+        index += 1;
         continue;
       }
-      if (rawName.trim().toLowerCase() !== "rel") {
-        continue;
+      const nameStart = index;
+      while (index < length && header[index] !== "=" && header[index] !== ";" && header[index] !== ",") {
+        index += 1;
       }
-      const value = rawValue.trim().replace(/^"|"$/g, "");
-      if (value.split(/\s+/).includes(relation)) {
-        targets.push(target);
+      const name = header.slice(nameStart, index).trim().toLowerCase();
+      if (header[index] === "=") {
+        index += 1;
+        let value = "";
+        if (header[index] === '"') {
+          index += 1;
+          while (index < length && header[index] !== '"') {
+            if (header[index] === "\\" && index + 1 < length) {
+              value += header[index + 1];
+              index += 2;
+              continue;
+            }
+            value += header[index];
+            index += 1;
+          }
+          if (header[index] === '"') {
+            index += 1;
+          }
+        } else {
+          const valueStart = index;
+          while (index < length && header[index] !== ";" && header[index] !== ",") {
+            index += 1;
+          }
+          value = header.slice(valueStart, index).trim();
+        }
+        if (name === "rel") {
+          for (const token of value.split(/\s+/)) {
+            if (token !== "") {
+              rels.push(token);
+            }
+          }
+        }
       }
+    }
+    if (rels.includes(relation)) {
+      targets.push(target);
     }
   }
   return targets;
@@ -819,7 +886,10 @@ export async function discoverIssuerForWebId(webId: string, fetchImpl: typeof fe
     } catch (error) {
       parseFailure = error instanceof Error ? error.message : "invalid JSON";
     }
-  } else if (contentType.includes("turtle") || contentType === "" || contentType.includes("text/plain")) {
+  } else {
+    // Turtle is the canonical Solid profile format. Providers sometimes serve it as
+    // `text/html` or `application/octet-stream`, so every non-JSON body is parsed as
+    // Turtle; a parse error is recorded and reported if no issuer is found.
     try {
       statements = extractIssuerStatements(parseTurtle(text, location.documentUrl));
     } catch (error) {
