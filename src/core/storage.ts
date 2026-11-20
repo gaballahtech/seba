@@ -44,13 +44,14 @@ export function memoryPendingAuthStore(): PendingAuthorizationStore & { peek(): 
       pending = { ...value };
     },
     async load() {
-      return pending;
+      // Return a copy so a caller cannot mutate the stored transaction in place.
+      return pending === null ? null : { ...pending };
     },
     async clear() {
       pending = null;
     },
     peek() {
-      return pending;
+      return pending === null ? null : { ...pending };
     },
   };
 }

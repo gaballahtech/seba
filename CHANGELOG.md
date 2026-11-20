@@ -2,6 +2,37 @@
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-11-20
+
+### Added
+
+- `Seba` is now an `EventTarget` and dispatches `login`, `logout` and `session-changed` events.
+- `SessionChangeEvent` now carries `previousSession` (the session before the transition).
+
+### Fixed
+
+- **WebID profile parsing is more robust:** non-JSON profiles are always parsed as Turtle
+  (providers sometimes mislabel Turtle as `text/html`), and the discovery error now includes
+  the underlying parse failure.
+- **`Link` header parsing** no longer breaks on commas or quoted parameter values inside a
+  target or parameter.
+- **PKCE verifier generation** uses rejection sampling, removing the previous modulo bias.
+- **In-memory pending-authorization store** returns copies, so a caller cannot mutate the
+  stored transaction in place.
+- **Compliance-tolerance warnings** are de-duplicated through a single per-process set.
+
+### Documentation / packaging
+
+- Renamed the `<seba-login>` “Create an account” prompt to “Get a Pod” to match the Solid
+  community's wording (`solidproject.org/get_a_pod`). The dedicated signup path is kept:
+  provider sign-in buttons go to the OIDC authorize endpoint, while “Get a Pod” links
+  directly to each provider's signup URL.
+- Fixed README examples that referenced a non-existent `seba.session` getter and missing
+  example files; added `examples/clientid.jsonld` and a no-build `examples/browser/`.
+- Corrected `package.json` `files` and the `src/element.ts` coverage glob so they reference
+  files that actually exist.
+- Refreshed `PROGRESS.md` to reflect verified status.
+
 ## [1.0.0] — 2026-11-09 (v1.0 hardening / Round 3)
 
 ### Stability tiers (honest declaration)

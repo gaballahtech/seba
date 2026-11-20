@@ -576,3 +576,28 @@ describe("tolerance acknowledgement safeguard (Task 8)", () => {
     ).not.toThrow();
   });
 });
+
+describe("compliance warning latches", () => {
+  it("toggles the audience and cnf warning latches", async () => {
+    const {
+      hasNonCompliantAudienceWarned,
+      setNonCompliantAudienceWarned,
+      hasNonCompliantCnfWarned,
+      setNonCompliantCnfWarned,
+    } = await import("../../src/core/oidc.js");
+
+    setNonCompliantAudienceWarned(false);
+    expect(hasNonCompliantAudienceWarned()).toBe(false);
+    setNonCompliantAudienceWarned(true);
+    expect(hasNonCompliantAudienceWarned()).toBe(true);
+    setNonCompliantAudienceWarned(false);
+    expect(hasNonCompliantAudienceWarned()).toBe(false);
+
+    setNonCompliantCnfWarned(false);
+    expect(hasNonCompliantCnfWarned()).toBe(false);
+    setNonCompliantCnfWarned(true);
+    expect(hasNonCompliantCnfWarned()).toBe(true);
+    setNonCompliantCnfWarned(false);
+    expect(hasNonCompliantCnfWarned()).toBe(false);
+  });
+});

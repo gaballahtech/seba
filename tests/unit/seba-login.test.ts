@@ -76,7 +76,9 @@ describe("provider branding", () => {
   it("ships a five-provider default set when the app omits the list", () => {
     expect(DEFAULT_PROVIDERS.length).toBe(5);
     expect(new Set(DEFAULT_PROVIDERS).size).toBe(5);
-    expect(DEFAULT_PROVIDERS[0]).toBe("https://solidcommunity.net/");
+    expect(DEFAULT_PROVIDERS[0]).toBe("https://login.inrupt.com/");
+    expect(DEFAULT_PROVIDERS[1]).toBe("https://solidcommunity.net/");
+    expect(DEFAULT_PROVIDERS[2]).toBe("https://solidweb.org/");
     expect(DEFAULT_PROVIDERS).toEqual(expect.arrayContaining(["https://solidweb.me/", "https://trinpod.eu/"]));
     expect(DEFAULT_PROVIDERS).not.toContain("https://inrupt.net/");
   });

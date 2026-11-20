@@ -12,12 +12,12 @@ Some real-world Solid Identity Providers do not fully conform to Solid-OIDC (e.g
 - Tolerances remain **opt-in and explicit** (`allowNonCompliantAudience`, `allowNonCompliantCnf`, per-issuer `tolerances`).
 - Enabling any tolerance requires `acknowledgeSecurityRelaxations: true`; otherwise configuration fails with `SebaConfigError`.
 - Tolerances relax only the specific check named; signature verification, issuer, expiry/iat, nonce, client audience/`azp` rules, and DPoP proof requirements on requests remain enforced (see `SECURITY.md`).
-- Validation code supports an `onToleranceApplied` callback so callers can observe when a bypass affects validation; emitting `session-changed` with reason `tolerance-applied` is the intended UX integration (wiring may span client/session layers).
+- Validation code supports an `onToleranceApplied` callback so callers can observe when a bypass affects validation; the session layer emits a `session-changed` event with reason `tolerance-applied`, which `Seba` re-dispatches to DOM-style listeners.
 
 ## Consequences
 
 - **Positive:** Misconfiguration is harder; relaxations are visible in config review; interoperability remains possible for documented cases.
-- **Negative:** Existing configs that used tolerances without acknowledgement must add `acknowledgeSecurityRelaxations: true` (migration). Event emission on refresh-path validation requires plumbing outside the minimal oidc-only change.
+- **Negative:** Existing configs that used tolerances without acknowledgement must add `acknowledgeSecurityRelaxations: true` (migration).
 
 ## Alternatives
 
