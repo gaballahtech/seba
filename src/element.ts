@@ -634,7 +634,7 @@ export class SebaLoginElement extends HTMLElementBase {
       customLabel.textContent = "Custom URL";
       const customDomain = document.createElement("span");
       customDomain.className = "prefix-option-domain";
-      customDomain.textContent = "Enter any provider";
+      customDomain.textContent = "Enter a full WebID URL";
       customMeta.append(customLabel, customDomain);
       custom.append(customIcon, customMeta);
 
@@ -690,8 +690,8 @@ export class SebaLoginElement extends HTMLElementBase {
       option.classList.toggle("is-selected", selected);
     });
     if (input) {
-      input.placeholder = custom ? "pod.example" : "username";
-      input.title = custom ? "https://pod.example/profile/card#me" : "e.g. alice";
+      input.placeholder = custom ? "https://pod.example/profile/card#me" : "username or WebID";
+      input.title = custom ? "https://pod.example/profile" : "e.g. alice";
     }
   }
 
@@ -1068,7 +1068,7 @@ export class SebaLoginElement extends HTMLElementBase {
       `</svg>` +
       `<span>Your password never leaves your provider.</span>` +
       `</p>` +
-      `<p class="create" part="create">New to Solid? <button class="create-open" type="button">Get a Pod</button></p>` +
+      `<p class="create" part="create">New to Solid? <button class="create-open" type="button">Create a Pod</button></p>` +
       `</div>` +
       `<div class="signed-in" part="signed-in" hidden>` +
       `<div class="account-head">` +
