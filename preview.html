@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>SEBA — &lt;seba-login&gt; preview</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 24px 16px;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: #0b0b0c;
+        color: #fafafa;
+        transition: background-color 200ms ease, color 200ms ease;
+      }
+      body[data-theme="light"] {
+        color-scheme: light;
+        background: #f4f4f6;
+        color: #0a0a0a;
+      }
+
+      /* ---------- Settings trigger ---------- */
+      .settings-trigger {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        z-index: 10;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        border: 1px solid #333336;
+        border-radius: 9999px;
+        background: #1c1c1e;
+        color: #b6b6bb;
+        cursor: pointer;
+        transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+      }
+      .settings-trigger:hover { background: #242427; color: #fafafa; border-color: #444447; }
+      .settings-trigger:focus-visible { outline: 2px solid #8b5cf6; outline-offset: 2px; }
+      .settings-trigger svg { width: 19px; height: 19px; }
+      body[data-theme="light"] .settings-trigger {
+        border-color: #e2e2e6;
+        background: #ffffff;
+        color: #3f3f46;
+      }
+      body[data-theme="light"] .settings-trigger:hover { background: #ededf0; color: #0a0a0a; border-color: #c9c9cf; }
+
+      /* ---------- Settings panel ---------- */
+      .settings {
+        position: fixed;
+        top: 64px;
+        right: 16px;
+        z-index: 10;
+        width: 232px;
+        padding: 14px;
+        border: 1px solid #333336;
+        border-radius: 16px;
+        background: #141415;
+        box-shadow: 0 24px 56px -20px rgba(0, 0, 0, 0.8);
+      }
+      .settings[hidden] { display: none; }
+      body[data-theme="light"] .settings {
+        border-color: #e2e2e6;
+        background: #ffffff;
+        box-shadow: 0 24px 56px -24px rgba(16, 16, 24, 0.3);
+      }
+      .settings h2 {
+        margin: 0 0 10px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #86868c;
+      }
+      body[data-theme="light"] .settings h2 { color: #6b6b72; }
+      .settings .group + .group { margin-top: 12px; }
+      .settings .label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 12px;
+        color: #86868c;
+      }
+      body[data-theme="light"] .settings .label { color: #6b6b72; }
+      .seg {
+        display: flex;
+        gap: 6px;
+      }
+      .seg button {
+        flex: 1;
+        padding: 7px 8px;
+        border: 1px solid #333336;
+        border-radius: 9999px;
+        background: #1c1c1e;
+        color: #b6b6bb;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+      }
+      .seg button:hover { background: #242427; color: #fafafa; border-color: #444447; }
+      .seg button.active {
+        background: #7c3aed;
+        border-color: #7c3aed;
+        color: #ffffff;
+      }
+      .seg button:focus-visible { outline: 2px solid #8b5cf6; outline-offset: 2px; }
+      body[data-theme="light"] .seg button {
+        border-color: #e2e2e6;
+        background: #ffffff;
+        color: #3f3f46;
+      }
+      body[data-theme="light"] .seg button:hover { background: #ededf0; border-color: #c9c9cf; }
+      body[data-theme="light"] .seg button.active {
+        background: #6d28d9;
+        border-color: #6d28d9;
+        color: #ffffff;
+      }
+      .settings .note {
+        margin: 12px 0 0;
+        font-size: 11px;
+        line-height: 1.5;
+        color: #86868c;
+      }
+      body[data-theme="light"] .settings .note { color: #6b6b72; }
+      code {
+        padding: 1px 4px;
+        border-radius: 4px;
+        background: #242427;
+        color: #d4d4d8;
+        font-size: 11px;
+      }
+      body[data-theme="light"] code { background: #ededf0; color: #3f3f46; }
+
+      @media (max-width: 420px) {
+        .settings { right: 12px; top: 60px; }
+        .settings-trigger { top: 12px; right: 12px; }
+      }
+    </style>
+  </head>
+  <body data-theme="dark">
+    <seba-login></seba-login>
+
+    <button class="settings-trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="settings-panel" aria-label="Preview settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="3.2" />
+        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.87a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 8.96 4.6H9a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.13 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 8.96V9c0 .68.4 1.29 1.03 1.56H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15Z" />
+      </svg>
+    </button>
+
+    <div class="settings" id="settings-panel" hidden>
+      <h2>Preview</h2>
+      <div class="group">
+        <span class="label">Theme</span>
+        <div class="seg" role="group" aria-label="Theme">
+          <button type="button" data-theme-btn="dark" class="active">Dark</button>
+          <button type="button" data-theme-btn="light">Light</button>
+        </div>
+      </div>
+      <div class="group">
+        <span class="label">State</span>
+        <div class="seg" role="group" aria-label="State">
+          <button type="button" data-demo="out" class="active">Signed out</button>
+          <button type="button" data-demo="in">Signed in</button>
+        </div>
+      </div>
+      <p class="note">عدّل <code>src/assets/card-styles.ts</code> والصفحة بتتحدّث تلقائيًا.</p>
+    </div>
+
+    <script type="module">
+      import { defineSebaLogin } from "/src/element.ts";
+
+      defineSebaLogin();
+
+      const el = document.querySelector("seba-login");
+      const trigger = document.querySelector(".settings-trigger");
+      const panel = document.querySelector("#settings-panel");
+      const DEMO_WEBID = "https://alice.example/profile/card#me";
+
+      function show(signedIn) {
+        const root = el.shadowRoot;
+        if (!root) return;
+        const signedOut = root.querySelector(".signed-out");
+        const signedInEl = root.querySelector(".signed-in");
+        const webId = root.querySelector(".account-webid");
+        if (signedOut) signedOut.hidden = signedIn;
+        if (signedInEl) signedInEl.hidden = !signedIn;
+        if (webId) webId.textContent = DEMO_WEBID;
+        if (signedIn) {
+          const signout = root.querySelector(".signout");
+          if (signout) {
+            signout.onclick = (event) => {
+              event.stopPropagation();
+              setActive("out");
+            };
+          }
+        }
+      }
+
+      function setActive(which) {
+        document.querySelectorAll("[data-demo]").forEach((button) => {
+          button.classList.toggle("active", button.dataset.demo === which);
+        });
+        show(which === "in");
+      }
+
+      document.querySelectorAll("[data-demo]").forEach((button) => {
+        button.addEventListener("click", () => setActive(button.dataset.demo));
+      });
+
+      function setTheme(theme) {
+        document.body.dataset.theme = theme;
+        el.setAttribute("theme", theme);
+        document.querySelectorAll("[data-theme-btn]").forEach((button) => {
+          button.classList.toggle("active", button.dataset.themeBtn === theme);
+        });
+      }
+
+      document.querySelectorAll("[data-theme-btn]").forEach((button) => {
+        button.addEventListener("click", () => setTheme(button.dataset.themeBtn));
+      });
+
+      function setPanel(open) {
+        panel.hidden = !open;
+        trigger.setAttribute("aria-expanded", String(open));
+      }
+
+      trigger.addEventListener("click", (event) => {
+        event.stopPropagation();
+        setPanel(panel.hidden);
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!panel.hidden && !panel.contains(event.target) && event.target !== trigger) {
+          setPanel(false);
+        }
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !panel.hidden) {
+          setPanel(false);
+          trigger.focus();
+        }
+      });
+
+      const params = new URLSearchParams(location.search);
+      const initial = params.get("state") === "in" ? "in" : "out";
+      const openMenu = params.get("menu") === "open";
+      const theme = params.get("theme") === "light" ? "light" : "dark";
+      requestAnimationFrame(() => {
+        setActive(initial);
+        setTheme(theme);
+        if (openMenu) {
+          el.shadowRoot?.querySelector(".prefix-button")?.click();
+        }
+      });
+    </script>
+  </body>
+</html>

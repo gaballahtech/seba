@@ -408,3 +408,20 @@ graphify cluster-only . --no-viz --graph graphify-out/graphify-out/graph.json
 ## License
 
 [MIT](./LICENSE)
+
+## Customizing the `<seba-login>` UI
+
+The card exposes CSS parts for full restyling without touching internals:
+
+```css
+seba-login::part(card) { /* container */ }
+seba-login::part(brand) { /* hexagon mark */ }
+seba-login::part(title) { /* heading */ }
+seba-login::part(subtitle) { /* subtitle */ }
+seba-login::part(providers) { /* provider list */ }
+seba-login::part(continue) { /* continue button */ }
+seba-login::part(dialog) { /* more-options dialog */ }
+seba-login::part(overlay) { /* dialog backdrop */ }
+```
+
+All colors are expressed through `--seba-*` custom properties on `:host`, so theming via variables remains the recommended first approach.

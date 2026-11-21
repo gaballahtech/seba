@@ -34,7 +34,7 @@ export const PROVIDER_INFO: Readonly<Record<string, ProviderInfo>> = {
   "https://solidcommunity.net/": {
     name: "Solid Project",
     website: "https://solidcommunity.net/",
-    signup: "https://solidcommunity.net/",
+    signup: "https://solidcommunity.net/.account/login/password/register/",
     iconUri: PROVIDER_ART["https://solidcommunity.net/"],
   },
   "https://login.inrupt.com/": {
@@ -82,41 +82,68 @@ export const PROVIDER_INFO: Readonly<Record<string, ProviderInfo>> = {
   "https://solidweb.org/": {
     name: "SolidWeb.org",
     website: "https://solidweb.org/",
-    signup: "https://solidweb.org/",
+    signup: "https://solidweb.org/register",
     iconUri: PROVIDER_ART["https://solidweb.org/"],
   },
   "https://solidweb.me/": {
     name: "SolidWeb.me",
     website: "https://solidweb.me/",
-    signup: "https://solidweb.me/",
+    signup: "https://solidweb.me/.account/login/password/register/",
     iconUri: PROVIDER_ART["https://solidweb.me/"],
+  },
+  "https://solid.redpencil.io/": {
+    name: "RedPencil",
+    website: "https://solid.redpencil.io/",
+    signup: "https://solid.redpencil.io/",
+    iconUri: monogramTile("#B91C1C", "R"),
   },
 };
 
 /**
- * The three providers shown as one-tap buttons on the sign-in card: Inrupt
- * PodSpaces, SolidCommunity.net and SolidWeb.org — the longest-running, most
- * widely used hosted Pods.
+ * Curated popularity order for the hosted Pods, most-used/most-known first.
+ *
+ * This is the fallback ordering when a browser has no local sign-in history:
+ * the longest-running community Pods lead, then the widely deployed EU/US
+ * providers, then the smaller and experimental hosts. A host app can reorder or
+ * restrict the list with the `providers` attribute; per-browser usage then
+ * promotes the providers a person actually signs in with.
  */
-export const PRIMARY_PROVIDERS: readonly string[] = [
-  "https://login.inrupt.com/",
+export const PROVIDER_POPULARITY: readonly string[] = [
   "https://solidcommunity.net/",
+  "https://login.inrupt.com/",
   "https://solidweb.org/",
+  "https://solidweb.me/",
+  "https://trinpod.us/",
+  "https://trinpod.eu/",
+  "https://teamid.live/",
+  "https://pods.solidcommunity.au/",
+  "https://solidweb.app/",
+  "https://solid.openlinksw.com:8445/",
+  "https://solid.redpencil.io/",
 ];
+
+/** Position in the curated popularity order (unknown issuers sort last). */
+export function popularityRank(issuer: string): number {
+  const index = PROVIDER_POPULARITY.indexOf(normalizeIssuer(issuer));
+  return index === -1 ? PROVIDER_POPULARITY.length : index;
+}
+
+/** Every provider with curated branding, ordered by popularity. */
+export const ALL_PROVIDERS: readonly string[] = [...PROVIDER_POPULARITY].sort(
+  (a, b) => popularityRank(a) - popularityRank(b),
+);
 
 /**
- * The default choice set: the three primary Pods plus two long-standing
- * community providers. An app that omits `providers` gets these; an app passes
- * its own list instead.
+ * The three providers shown as one-tap buttons on the sign-in card: the top of
+ * the popularity order until per-browser usage promotes someone else.
  */
-export const DEFAULT_PROVIDERS: readonly string[] = [
-  ...PRIMARY_PROVIDERS,
-  "https://solidweb.me/",
-  "https://trinpod.eu/",
-];
+export const PRIMARY_PROVIDERS: readonly string[] = ALL_PROVIDERS.slice(0, 3);
 
-/** Every provider with curated branding, for the "all providers" browser. */
-export const ALL_PROVIDERS: readonly string[] = Object.keys(PROVIDER_INFO);
+/**
+ * The default choice set when an app omits `providers`: every curated Pod in
+ * popularity order. An app that wants a narrower list passes its own.
+ */
+export const DEFAULT_PROVIDERS: readonly string[] = [...ALL_PROVIDERS];
 
 const FALLBACK_HUES = ["#7C3AED", "#0E7C86", "#B45309", "#1D4ED8", "#9D174D", "#065F46"];
 
