@@ -61,6 +61,9 @@ const BACK_SVG =
 const PERSON_SVG =
   `<svg viewBox="0 0 24 24" width="1.15em" height="1.15em" focusable="false" aria-hidden="true">` +
   `<path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4.2 0-7 2.1-7 5v1h14v-1c0-2.9-2.8-5-7-5Z" fill="currentColor"/></svg>`;
+const COPY_SVG =
+  `<svg viewBox="0 0 24 24" width="1em" height="1em" focusable="false" aria-hidden="true">` +
+  `<rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 15V5h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const DOTS_SVG =
   `<svg viewBox="0 0 24 24" width="1.15em" height="1.15em" focusable="false" aria-hidden="true">` +
   `<circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg>`;
@@ -171,6 +174,18 @@ export class SebaLoginElement extends HTMLElementBase {
     }
   }
 
+  async #copyWebId(): Promise<void> {
+    const webid = this.#session?.webId;
+    if (!webid) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(webid);
+    } catch {
+      /* clipboard API unavailable — copy still attempted silently */
+    }
+  }
+
   #attr(name: string): string | null {
     return typeof this.getAttribute === "function" ? this.getAttribute(name) : null;
   }
@@ -224,6 +239,10 @@ export class SebaLoginElement extends HTMLElementBase {
     if (target.closest(".dialog-back") !== null) {
       this.#dialogView = this.#dialogView === "create-other" ? "create" : "more";
       this.#update();
+      return;
+    }
+    if (target.closest(".copy-webid") !== null) {
+      this.#copyWebId();
       return;
     }
     if (target.closest(".signout") !== null) {
@@ -574,7 +593,7 @@ export class SebaLoginElement extends HTMLElementBase {
     if (rows.length === 0) {
       const empty = document.createElement("p");
       empty.className = "empty";
-      empty.textContent = "No Pod providers are configured for this app.";
+      empty.textContent = "No providers are configured. Enter your WebID below to continue.";
       container.replaceChildren(empty);
       return;
     }
@@ -1076,7 +1095,10 @@ export class SebaLoginElement extends HTMLElementBase {
       `<div><p class="eyebrow">Signed in</p>` +
       `<p class="account-title">Your Pod is connected</p></div>` +
       `</div>` +
+      `<div class="webid-row">` +
       `<p class="account-webid" part="webid"></p>` +
+      `<button class="copy-webid" part="copy-webid" type="button" aria-label="Copy WebID">${COPY_SVG}</button>` +
+      `</div>` +
       `<button class="signout" part="signout" type="button">Sign out</button>` +
       `</div>` +
       `</section>` +
@@ -1152,6 +1174,13 @@ export class SebaLoginElement extends HTMLElementBase {
       .querySelectorAll<HTMLButtonElement>(".provider-hit, .more, .create-open, .continue, .signout")
       .forEach((button) => {
         button.disabled = this.#busy;
+        if (button.classList.contains("continue")) {
+          if (this.#busy) {
+            button.classList.add("is-busy");
+          } else {
+            button.classList.remove("is-busy");
+          }
+        }
       });
     const more = root.querySelector<HTMLElement>(".more");
     if (more) {

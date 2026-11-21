@@ -16,7 +16,7 @@ describe("seba-login accessibility", () => {
     const shadow = el.shadowRoot;
     expect(shadow).not.toBeNull();
 
-    const results = await axe.run(shadow as HTMLElement, { rules: {} });
+    const results = await axe.run(shadow as unknown as HTMLElement, { rules: {} });
     const seriousViolations = results.violations.filter(
       (v) => ["serious", "critical"].includes(v.impact ?? ""),
     );

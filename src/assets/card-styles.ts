@@ -683,6 +683,9 @@ export const CARD_STYLES = `
   box-shadow: 0 0 0 3px var(--seba-ring);
 }
 .continue:disabled { opacity: 0.55; cursor: progress; }
+.continue.is-busy { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.continue.is-busy::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent; animation: seba-spin 700ms linear infinite; }
+@keyframes seba-spin { to { transform: rotate(360deg); } }
 
 /* ---------- Error notice ---------- */
 .notice {
@@ -1033,5 +1036,13 @@ export const CARD_STYLES = `
     outline: 2px solid Highlight;
   }
 }
+
+/* ---------- RTL ---------- */
+:host([dir="rtl"]) .head { flex-direction: row-reverse; }
+:host([dir="rtl"]) .provider { flex-direction: row-reverse; }
+:host([dir="rtl"]) .pmeta { align-items: flex-start; }
+:host([dir="rtl"]) .psite { text-align: left; }
+:host([dir="rtl"]) .providers { align-items: flex-end; }
+:host([dir="rtl"]) .card { direction: rtl; }
 
 `;
