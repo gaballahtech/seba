@@ -506,10 +506,12 @@ export class SebaLoginElement extends HTMLElementBase {
   #providerRow(choice: ProviderChoice): HTMLElement {
     const row = document.createElement("div");
     row.className = "provider";
+    row.setAttribute("part", "provider");
 
     const hit = document.createElement("button");
     hit.type = "button";
     hit.className = "provider-hit";
+    hit.setAttribute("part", "provider-hit");
     hit.dataset.issuer = choice.issuer;
     hit.setAttribute("aria-label", `Sign in with ${choice.name}`);
 
@@ -523,6 +525,7 @@ export class SebaLoginElement extends HTMLElementBase {
 
     const meta = document.createElement("span");
     meta.className = "pmeta";
+    meta.setAttribute("part", "meta");
     const name = document.createElement("span");
     name.className = "pname";
     name.textContent = choice.name;
@@ -1039,42 +1042,42 @@ export class SebaLoginElement extends HTMLElementBase {
       `<p class="sub" part="subtitle">Choose your Pod provider to continue.</p></div>` +
       `</header>` +
       `<div class="providers" part="providers" role="group" aria-label="Pod providers"></div>` +
-      `<button class="more" type="button" aria-haspopup="dialog" aria-label="More sign-in options">` +
+      `<button class="more" part="more" type="button" aria-haspopup="dialog" aria-label="More sign-in options">` +
       `<span class="more-dots" aria-hidden="true">&#8943;</span>` +
       `<span class="more-text">More options</span></button>` +
-      `<div class="or" aria-hidden="true"><span>or</span></div>` +
+      `<div class="or" part="or" aria-hidden="true"><span>or</span></div>` +
       `<form class="webid-form">` +
-      `<label class="field-label" for="seba-webid">Continue with your WebID</label>` +
-       `<div class="combo">` +
-       `<span class="prefix-wrap">` +
+      `<label class="field-label" part="label" for="seba-webid">Continue with your WebID</label>` +
+       `<div class="combo" part="combo">` +
+       `<span class="prefix-wrap" part="prefix">` +
        `<img class="prefix-icon" alt="" width="48" height="48" decoding="async">` +
-       `<button class="prefix-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Pod provider for your WebID">` +
+       `<button class="prefix-button" part="prefix-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Pod provider for your WebID">` +
        `<span class="prefix-label">Custom URL</span>` +
        `<span class="prefix-chev" aria-hidden="true">${CHEVRON_DOWN_SVG}</span></button>` +
-       `<div class="prefix-menu" role="listbox" aria-label="Pod provider" hidden></div>` +
+       `<div class="prefix-menu" part="prefix-menu" role="listbox" aria-label="Pod provider" hidden></div>` +
        `</span>` +
-      `<input class="webid-input" id="seba-webid" name="webid" type="text" inputmode="url" ` +
+      `<input class="webid-input" part="input" id="seba-webid" name="webid" type="text" inputmode="url" ` +
       `autocomplete="off" spellcheck="false" placeholder="username" aria-label="WebID">` +
       `</div>` +
       `<button class="continue" part="continue" type="submit">Continue</button>` +
-      `<p class="notice" role="alert" hidden></p>` +
+      `<p class="notice" part="notice" role="alert" hidden></p>` +
       `</form>` +
-      `<p class="trust">` +
+      `<p class="trust" part="trust">` +
       `<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">` +
       `<path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 1 1 6 0v3H9Z" fill="currentColor"/>` +
       `</svg>` +
       `<span>Your password never leaves your provider.</span>` +
       `</p>` +
-      `<p class="create">New to Solid? <button class="create-open" type="button">Get a Pod</button></p>` +
+      `<p class="create" part="create">New to Solid? <button class="create-open" type="button">Get a Pod</button></p>` +
       `</div>` +
-      `<div class="signed-in" hidden>` +
+      `<div class="signed-in" part="signed-in" hidden>` +
       `<div class="account-head">` +
-      `<span class="account-mark" aria-hidden="true">${PERSON_SVG}</span>` +
+      `<span class="account-mark" part="account-mark" aria-hidden="true">${PERSON_SVG}</span>` +
       `<div><p class="eyebrow">Signed in</p>` +
       `<p class="account-title">Your Pod is connected</p></div>` +
       `</div>` +
-      `<p class="account-webid"></p>` +
-      `<button class="signout" type="button">Sign out</button>` +
+      `<p class="account-webid" part="webid"></p>` +
+      `<button class="signout" part="signout" type="button">Sign out</button>` +
       `</div>` +
       `</section>` +
       `<div class="overlay" part="overlay" hidden>` +

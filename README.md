@@ -419,9 +419,28 @@ seba-login::part(brand) { /* hexagon mark */ }
 seba-login::part(title) { /* heading */ }
 seba-login::part(subtitle) { /* subtitle */ }
 seba-login::part(providers) { /* provider list */ }
-seba-login::part(continue) { /* continue button */ }
+seba-login::part(provider) { /* individual provider row */ }
+seba-login::part(provider-hit) { /* provider hit button */ }
+seba-login::part(more) { /* more options button */ }
+seba-login::part(or) { /* divider */ }
+seba-login::part(form) { /* WebID form */ }
+seba-login::part(label) { /* field label */ }
+seba-login::part(combo) { /* WebID combo */ }
+seba-login::part(prefix) { /* prefix button */ }
+seba-login::part(prefix-button) { /* prefix trigger */ }
+seba-login::part(prefix-menu) { /* prefix menu */ }
+seba-login::part(input) { /* WebID input */ }
+seba-login::part(notice) { /* alert */ }
+seba-login::part(trust) { /* trust note */ }
+seba-login::part(create) { /* create button row */ }
+seba-login::part(signed-in) { /* signed-in state */ }
+seba-login::part(account-mark) { /* account mark */ }
+seba-login::part(webid) { /* signed-in webid */ }
+seba-login::part(signout) { /* sign out */ }
 seba-login::part(dialog) { /* more-options dialog */ }
 seba-login::part(overlay) { /* dialog backdrop */ }
 ```
+
+The default design above is the recommended starting point; hosts may restyle via these parts or override `--seba-*` custom properties.
 
 All colors are expressed through `--seba-*` custom properties on `:host`, so theming via variables remains the recommended first approach.
