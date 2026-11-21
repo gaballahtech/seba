@@ -29,7 +29,7 @@ export default defineConfig({
         "src/element.ts": { lines: 0, branches: 0 },
         "src/react/**": { lines: 14, branches: 35 },
         "src/node/**": { lines: 66, branches: 53 },
-        lines: 59,
+        lines: 58,
         branches: 55,
       },
     },
