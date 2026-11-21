@@ -14,7 +14,8 @@ import { isSebaLogoVariant, sebaLogoImage } from "./assets/icons.js";
 import {
   ALL_PROVIDERS,
   issuerDomain,
-  PRIMARY_PROVIDERS,
+  normalizeIssuer,
+  popularityRank,
   providerInfo,
 } from "./assets/providers.js";
 import { SebaConfigError, SebaSessionExpiredError } from "./core/errors.js";
@@ -40,6 +41,13 @@ const OBSERVED_ATTRIBUTES = [
 ] as const;
 
 const CUSTOM_PREFIX = "__custom__";
+const USAGE_KEY = "seba:provider-usage";
+/** Show a filter field once the list is long enough to need one. */
+const SEARCH_THRESHOLD = 10;
+const SEARCH_SVG =
+  `<svg viewBox="0 0 24 24" width="1em" height="1em" focusable="false" aria-hidden="true" ` +
+  `fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">` +
+  `<circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>`;
 
 const CHEVRON_SVG =
   `<svg viewBox="0 0 24 24" width="1.05em" height="1.05em" focusable="false" aria-hidden="true">` +
@@ -50,9 +58,6 @@ const CHEVRON_DOWN_SVG =
 const BACK_SVG =
   `<svg viewBox="0 0 24 24" width="1.15em" height="1.15em" focusable="false" aria-hidden="true">` +
   `<path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-const GRID_SVG =
-  `<svg viewBox="0 0 24 24" width="1.15em" height="1.15em" focusable="false" aria-hidden="true">` +
-  `<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" fill="currentColor"/></svg>`;
 const PERSON_SVG =
   `<svg viewBox="0 0 24 24" width="1.15em" height="1.15em" focusable="false" aria-hidden="true">` +
   `<path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4.2 0-7 2.1-7 5v1h14v-1c0-2.9-2.8-5-7-5Z" fill="currentColor"/></svg>`;
@@ -60,7 +65,7 @@ const DOTS_SVG =
   `<svg viewBox="0 0 24 24" width="1.15em" height="1.15em" focusable="false" aria-hidden="true">` +
   `<circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg>`;
 
-type DialogView = "more" | "providers" | "create" | "create-other";
+type DialogView = "more" | "create" | "create-other";
 
 interface ChoiceOptions {
   title: string;
@@ -70,7 +75,6 @@ interface ChoiceOptions {
   href?: string;
   issuer?: string;
   action?: string;
-  badge?: string;
   disabled?: boolean;
 }
 
@@ -90,6 +94,8 @@ export class SebaLoginElement extends HTMLElementBase {
   #errorText = "";
   /** Selected WebID prefix; `undefined` = not chosen yet, `null` = custom URL. */
   #prefixIssuer: string | null | undefined = undefined;
+  /** Full WebID captured by smart detection, so submitting round-trips exactly. */
+  #webIdHint: { issuer: string; username: string; webId: string } | null = null;
 
   /** Current session, or `null` when signed out. */
   get session(): Session | null {
@@ -101,7 +107,9 @@ export class SebaLoginElement extends HTMLElementBase {
     const root = this.shadowRoot;
     root?.addEventListener("click", this.#onClick);
     root?.addEventListener("submit", this.#onSubmit);
-    root?.addEventListener("change", this.#onChange);
+    root?.addEventListener("input", this.#onInput);
+    root?.addEventListener("paste", this.#onPaste);
+    root?.addEventListener("focusout", this.#onFocusOut);
     root?.addEventListener("keydown", this.#onKeydown);
     void this.#restoreOrComplete();
   }
@@ -110,7 +118,9 @@ export class SebaLoginElement extends HTMLElementBase {
     const root = this.shadowRoot;
     root?.removeEventListener("click", this.#onClick);
     root?.removeEventListener("submit", this.#onSubmit);
-    root?.removeEventListener("change", this.#onChange);
+    root?.removeEventListener("input", this.#onInput);
+    root?.removeEventListener("paste", this.#onPaste);
+    root?.removeEventListener("focusout", this.#onFocusOut);
     root?.removeEventListener("keydown", this.#onKeydown);
   }
 
@@ -175,6 +185,25 @@ export class SebaLoginElement extends HTMLElementBase {
       this.#closeDialog();
       return;
     }
+    const prefixButton = target.closest(".prefix-button");
+    if (prefixButton !== null) {
+      const menu = root.querySelector<HTMLElement>(".prefix-menu");
+      this.#setPrefixMenu(menu?.hidden ?? true);
+      return;
+    }
+    const prefixOption = target.closest<HTMLElement>(".prefix-option");
+    if (prefixOption !== null) {
+      const issuer = prefixOption.dataset.issuer;
+      this.#prefixIssuer = issuer === CUSTOM_PREFIX ? null : (issuer ?? null);
+      this.#webIdHint = null;
+      this.#setPrefixMenu(false);
+      this.#paintPrefix();
+      root.querySelector<HTMLButtonElement>(".prefix-button")?.focus();
+      return;
+    }
+    if (target.closest(".prefix-wrap") === null) {
+      this.#setPrefixMenu(false);
+    }
     const providerHit = target.closest<HTMLElement>(".provider-hit");
     if (providerHit?.dataset.issuer !== undefined) {
       void this.#startLogin({ issuer: providerHit.dataset.issuer });
@@ -208,29 +237,52 @@ export class SebaLoginElement extends HTMLElementBase {
       return;
     }
     const action = target.closest<HTMLElement>(".choice[data-action]")?.dataset.action;
-    if (action === "providers") {
-      this.#dialogView = "providers";
-      this.#update();
-      return;
-    }
-    if (action === "webid") {
-      this.#closeDialog();
-      raf(() => this.shadowRoot?.querySelector<HTMLInputElement>(".webid-input")?.focus());
-      return;
-    }
     if (action === "create-other") {
       this.#dialogView = "create-other";
       this.#update();
     }
   };
 
-  #onChange = (event: Event): void => {
-    const target = event.target as HTMLSelectElement | null;
-    if (target === null || !target.classList.contains("prefix")) {
+  #onPaste = (event: Event): void => {
+    const target = event.target as HTMLInputElement | null;
+    if (target === null || !target.classList.contains("webid-input")) {
       return;
     }
-    this.#prefixIssuer = target.value === CUSTOM_PREFIX ? null : target.value;
-    this.#paintPrefix();
+    const text = (event as ClipboardEvent).clipboardData?.getData("text") ?? "";
+    if (!/^https?:\/\//i.test(text.trim())) {
+      return;
+    }
+    // Let the browser insert the text first, then tidy the field.
+    raf(() => this.#detectProvider(target.value));
+  };
+
+  #onFocusOut = (event: Event): void => {
+    const target = event.target as HTMLInputElement | null;
+    if (target === null || !target.classList.contains("webid-input")) {
+      return;
+    }
+    const value = target.value.trim();
+    if (/^https?:\/\//i.test(value)) {
+      this.#detectProvider(value);
+    }
+  };
+
+  #onInput = (event: Event): void => {
+    const target = event.target as HTMLInputElement | null;
+    if (target === null) {
+      return;
+    }
+    if (target.classList.contains("prefix-search-input")) {
+      this.#filterPrefix(target.value);
+    } else if (target.classList.contains("dialog-search-input")) {
+      this.#filterDialog(target.value);
+    } else if (target.classList.contains("webid-input")) {
+      // Editing the name invalidates the captured WebID.
+      const hint = this.#webIdHint;
+      if (hint !== null && target.value.trim() !== hint.username) {
+        this.#webIdHint = null;
+      }
+    }
   };
 
   #onSubmit = (event: Event): void => {
@@ -238,7 +290,11 @@ export class SebaLoginElement extends HTMLElementBase {
     const root = this.shadowRoot;
     const input = root?.querySelector<HTMLInputElement>(".webid-input");
     const raw = input?.value.trim() ?? "";
+    if (/^https?:\/\//i.test(raw)) {
+      this.#detectProvider(raw);
+    }
     const prefix = this.#prefixIssuer;
+    const hint = this.#webIdHint;
     let target: { kind: "issuer" | "webId"; value: string } | null = null;
 
     if (raw === "") {
@@ -249,12 +305,15 @@ export class SebaLoginElement extends HTMLElementBase {
       target = { kind: "issuer", value: prefix };
     } else if (/^https?:\/\//i.test(raw)) {
       target = classifyInput(raw);
+    } else if (hint !== null && raw === hint.username && prefix === hint.issuer) {
+      // Reuse the exact WebID we detected, preserving sub-domain style URLs.
+      target = classifyInput(hint.webId);
     } else {
       if (prefix === undefined || prefix === null) {
-        this.#showError("Paste your full WebID URL, including https://.");
+        this.#showError("Enter your username, or paste your full WebID URL.");
         return;
       }
-      target = classifyInput(`${prefix.replace(/\/$/, "")}/${raw.replace(/^\/+/, "")}`);
+      target = classifyInput(buildWebId(prefix, raw));
     }
 
     if (target === null) {
@@ -267,13 +326,23 @@ export class SebaLoginElement extends HTMLElementBase {
   };
 
   #onKeydown = (event: Event): void => {
-    if (!this.#dialogOpen) {
-      return;
-    }
     const { key } = event as KeyboardEvent;
     if (key === "Escape") {
+      const menu = this.shadowRoot?.querySelector<HTMLElement>(".prefix-menu");
+      if (menu !== null && menu !== undefined && !menu.hidden) {
+        event.preventDefault();
+        this.#setPrefixMenu(false);
+        this.shadowRoot?.querySelector<HTMLButtonElement>(".prefix-button")?.focus();
+        return;
+      }
+      if (!this.#dialogOpen) {
+        return;
+      }
       event.preventDefault();
       this.#closeDialog();
+      return;
+    }
+    if (!this.#dialogOpen) {
       return;
     }
     if (key !== "Tab") {
@@ -353,15 +422,73 @@ export class SebaLoginElement extends HTMLElementBase {
 
   #allProviders(): string[] {
     const raw = this.#attr("providers");
-    return raw === null ? [...ALL_PROVIDERS] : parseProviders(raw);
+    return this.#sortProviders(raw === null ? ALL_PROVIDERS : parseProviders(raw));
   }
 
+  /** The card's one-tap providers: the most-used three. */
   #primaryProviders(): string[] {
-    const raw = this.#attr("providers");
-    if (raw === null) {
-      return [...PRIMARY_PROVIDERS];
+    return this.#allProviders().slice(0, 3);
+  }
+
+  /** The remaining providers, shown by "More options" so nothing is duplicated. */
+  #restProviders(): string[] {
+    return this.#allProviders().slice(3);
+  }
+
+  /**
+   * Order providers by this browser's sign-in history, then by the curated
+   * popularity order. Any site embedding SEBA that sees a provider used more
+   * often promotes it, so returning people get their usual Pods first.
+   */
+  #sortProviders(providers: readonly string[]): string[] {
+    const usage = this.#usage();
+    return [...providers].sort((a, b) => {
+      const usedA = usage[a] ?? 0;
+      const usedB = usage[b] ?? 0;
+      if (usedA !== usedB) {
+        return usedB - usedA;
+      }
+      return popularityRank(a) - popularityRank(b);
+    });
+  }
+
+  /** Sign-in counts per issuer, shared by every SEBA app on this origin. */
+  #usage(): Record<string, number> {
+    try {
+      const raw = localStorage.getItem(USAGE_KEY);
+      if (raw === null) {
+        return {};
+      }
+      const parsed: unknown = JSON.parse(raw);
+      if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return {};
+      }
+      const counts: Record<string, number> = {};
+      for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+        if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+          counts[key] = Math.floor(value);
+        }
+      }
+      return counts;
+    } catch {
+      return {};
     }
-    return parseProviders(raw).slice(0, 3);
+  }
+
+  /** Record one successful sign-in for an issuer and re-sort the card. */
+  #recordUsage(issuer: string | null): void {
+    if (issuer === null) {
+      return;
+    }
+    try {
+      const usage = this.#usage();
+      const key = normalizeIssuer(issuer);
+      usage[key] = (usage[key] ?? 0) + 1;
+      localStorage.setItem(USAGE_KEY, JSON.stringify(usage));
+    } catch {
+      /* storage unavailable (private mode) — ordering just stays popular-first */
+    }
+    this.#update();
   }
 
   #choiceFor(issuer: string): ProviderChoice {
@@ -432,9 +559,15 @@ export class SebaLoginElement extends HTMLElementBase {
     if (!container) {
       return;
     }
-    const rows = this.#primaryProviders().map((issuer) =>
-      this.#providerRow(this.#choiceFor(issuer)),
-    );
+    const issuers = this.#primaryProviders();
+    const key = issuers.join("|");
+    // Rebuild only when the set or order changes so the staggered entrance
+    // plays once instead of replaying on every re-render.
+    if (container.dataset.key === key) {
+      return;
+    }
+    container.dataset.key = key;
+    const rows = issuers.map((issuer) => this.#providerRow(this.#choiceFor(issuer)));
     if (rows.length === 0) {
       const empty = document.createElement("p");
       empty.className = "empty";
@@ -446,24 +579,82 @@ export class SebaLoginElement extends HTMLElementBase {
   }
 
   #syncPrefix(): void {
-    const select = this.shadowRoot?.querySelector<HTMLSelectElement>(".prefix");
-    if (!select) {
+    const menu = this.shadowRoot?.querySelector<HTMLElement>(".prefix-menu");
+    if (!menu) {
       return;
     }
     const providers = this.#allProviders();
     const key = providers.join("|");
-    if (select.dataset.key !== key) {
+    if (menu.dataset.key !== key) {
       const options = providers.map((issuer) => {
-        const option = document.createElement("option");
-        option.value = issuer;
-        option.textContent = issuerDomain(issuer);
+        const choice = this.#choiceFor(issuer);
+        const option = document.createElement("button");
+        option.type = "button";
+        option.className = "prefix-option";
+        option.setAttribute("role", "option");
+        option.dataset.issuer = issuer;
+
+        const icon = document.createElement("img");
+        icon.className = "prefix-option-icon";
+        icon.alt = "";
+        icon.width = 22;
+        icon.height = 22;
+        icon.decoding = "async";
+        icon.src = choice.iconUri;
+
+        const meta = document.createElement("span");
+        meta.className = "prefix-option-meta";
+        const label = document.createElement("span");
+        label.className = "prefix-option-label";
+        label.textContent = choice.name;
+        const domain = document.createElement("span");
+        domain.className = "prefix-option-domain";
+        domain.textContent = choice.domain;
+        meta.append(label, domain);
+
+        option.append(icon, meta);
         return option;
       });
-      const custom = document.createElement("option");
-      custom.value = CUSTOM_PREFIX;
-      custom.textContent = "Custom URL";
-      select.replaceChildren(...options, custom);
-      select.dataset.key = key;
+
+      const custom = document.createElement("button");
+      custom.type = "button";
+      custom.className = "prefix-option";
+      custom.setAttribute("role", "option");
+      custom.dataset.issuer = CUSTOM_PREFIX;
+      const customIcon = document.createElement("span");
+      customIcon.className = "prefix-option-icon glyph";
+      customIcon.innerHTML = PERSON_SVG;
+      const customMeta = document.createElement("span");
+      customMeta.className = "prefix-option-meta";
+      const customLabel = document.createElement("span");
+      customLabel.className = "prefix-option-label";
+      customLabel.textContent = "Custom URL";
+      const customDomain = document.createElement("span");
+      customDomain.className = "prefix-option-domain";
+      customDomain.textContent = "Enter any provider";
+      customMeta.append(customLabel, customDomain);
+      custom.append(customIcon, customMeta);
+
+      // Custom URL leads the list so people who need it never scroll, but it is
+      // not preselected — the most-used provider keeps the default.
+      const long = providers.length > SEARCH_THRESHOLD;
+      const list = document.createElement("div");
+      list.className = "prefix-list";
+      list.append(custom, ...options);
+      if (long) {
+        const empty = document.createElement("p");
+        empty.className = "prefix-empty";
+        empty.textContent = "No providers match your search.";
+        empty.hidden = true;
+        list.append(empty);
+      }
+      const children: HTMLElement[] = [];
+      if (long) {
+        children.push(this.#searchField("prefix-search-input", "Search providers"));
+      }
+      children.push(list);
+      menu.replaceChildren(...children);
+      menu.dataset.key = key;
     }
     if (this.#prefixIssuer === undefined) {
       const remembered = lastIssuer();
@@ -472,15 +663,12 @@ export class SebaLoginElement extends HTMLElementBase {
     } else if (this.#prefixIssuer !== null && !providers.includes(this.#prefixIssuer)) {
       this.#prefixIssuer = providers[0] ?? null;
     }
-    select.value =
-      this.#prefixIssuer === null || this.#prefixIssuer === undefined
-        ? CUSTOM_PREFIX
-        : this.#prefixIssuer;
   }
 
   #paintPrefix(): void {
     const root = this.shadowRoot;
     const icon = root?.querySelector<HTMLImageElement>(".prefix-icon");
+    const label = root?.querySelector<HTMLElement>(".prefix-label");
     const input = root?.querySelector<HTMLInputElement>(".webid-input");
     const issuer = this.#prefixIssuer;
     const custom = issuer === null || issuer === undefined;
@@ -490,9 +678,157 @@ export class SebaLoginElement extends HTMLElementBase {
         icon.src = providerInfo(issuer).iconUri;
       }
     }
-    if (input) {
-      input.placeholder = custom ? "https://your-pod.example/profile/card#me" : "profile/card#me";
+    if (label) {
+      label.textContent = custom ? "Custom URL" : issuerDomain(issuer);
     }
+    root?.querySelectorAll<HTMLElement>(".prefix-option").forEach((option) => {
+      const selected = option.dataset.issuer === (custom ? CUSTOM_PREFIX : issuer);
+      option.setAttribute("aria-selected", String(selected));
+      option.classList.toggle("is-selected", selected);
+    });
+    if (input) {
+      input.placeholder = custom ? "pod.example" : "username";
+      input.title = custom ? "https://pod.example/profile/card#me" : "e.g. alice";
+    }
+  }
+
+  /** A filter field used when the provider list is too long to scan. */
+  #searchField(className: string, placeholder: string): HTMLElement {
+    const wrap = document.createElement("div");
+    wrap.className = "search";
+    const icon = document.createElement("span");
+    icon.className = "search-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.innerHTML = SEARCH_SVG;
+    const input = document.createElement("input");
+    input.type = "search";
+    input.className = className;
+    input.placeholder = placeholder;
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.setAttribute("aria-label", placeholder);
+    wrap.append(icon, input);
+    return wrap;
+  }
+
+  /** Hide/show prefix options that do not match the typed query. */
+  #filterPrefix(query: string): void {
+    const root = this.shadowRoot;
+    if (!root) {
+      return;
+    }
+    const q = query.trim();
+    let visible = 0;
+    root.querySelectorAll<HTMLElement>(".prefix-option[data-issuer]").forEach((option) => {
+      if (option.dataset.issuer === CUSTOM_PREFIX) {
+        return;
+      }
+      const match = matchesSearch(option.textContent ?? "", q);
+      option.hidden = !match;
+      if (match) {
+        visible++;
+      }
+    });
+    const empty = root.querySelector<HTMLElement>(".prefix-empty");
+    if (empty) {
+      empty.hidden = q === "" || visible !== 0;
+    }
+  }
+
+  /** Hide/show dialog choices that do not match the typed query. */
+  #filterDialog(query: string): void {
+    const root = this.shadowRoot;
+    if (!root) {
+      return;
+    }
+    const q = query.trim();
+    let visible = 0;
+    root.querySelectorAll<HTMLElement>(".dialog .choice").forEach((choice) => {
+      // Keep the "Other provider" entry point reachable while filtering.
+      if (choice.dataset.action !== undefined) {
+        return;
+      }
+      const match = matchesSearch(choice.textContent ?? "", q);
+      choice.hidden = !match;
+      if (match) {
+        visible++;
+      }
+    });
+    const empty = root.querySelector<HTMLElement>(".dialog .empty-search");
+    if (empty) {
+      empty.hidden = q === "" || visible !== 0;
+    }
+  }
+
+  /**
+ * Recognise a pasted/typed WebID: pick the matching provider and reduce the
+ * field to the username, or fall back to Custom URL for an unknown host.
+ */
+  #detectProvider(raw: string): void {
+    const value = raw.trim();
+    if (!/^https?:\/\//i.test(value)) {
+      return;
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
+      return;
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return;
+    }
+    const issuer = providerForWebId(value, this.#allProviders());
+    const input = this.shadowRoot?.querySelector<HTMLInputElement>(".webid-input");
+    if (issuer !== null) {
+      const name = extractUsername(value, new URL(issuer).hostname);
+      this.#prefixIssuer = issuer;
+      this.#webIdHint = { issuer, username: name, webId: value };
+      if (input !== null && input !== undefined && input.value !== name) {
+        input.value = name;
+      }
+    } else {
+      // Unknown host: switch to Custom URL and keep the full address.
+      this.#prefixIssuer = null;
+      this.#webIdHint = { issuer: "", username: value, webId: value };
+      if (input !== null && input !== undefined && input.value !== value) {
+        input.value = value;
+      }
+    }
+    this.#paintPrefix();
+  }
+
+  /** Open or close the custom provider menu, flipping it to fit the viewport. */
+  #setPrefixMenu(open: boolean): void {
+    const root = this.shadowRoot;
+    const menu = root?.querySelector<HTMLElement>(".prefix-menu");
+    const button = root?.querySelector<HTMLButtonElement>(".prefix-button");
+    const anchor = root?.querySelector<HTMLElement>(".prefix-wrap");
+    if (menu) {
+      if (open && anchor) {
+        this.#placePrefixMenu(menu, anchor);
+      }
+      menu.hidden = !open;
+    }
+    if (button) {
+      button.setAttribute("aria-expanded", String(open));
+    }
+  }
+
+  /**
+   * Decide whether the menu opens up or down and cap its height to the space
+   * available, so it never pushes the page into a long scroll.
+   */
+  #placePrefixMenu(menu: HTMLElement, anchor: HTMLElement): void {
+    const viewport = window.innerHeight || 0;
+    const rect = anchor.getBoundingClientRect();
+    const spaceBelow = Math.max(0, viewport - rect.bottom - 12);
+    const spaceAbove = Math.max(0, rect.top - 12);
+    const openDown = spaceBelow > spaceAbove;
+    const space = Math.max(140, Math.min(300, openDown ? spaceBelow : spaceAbove));
+    menu.classList.toggle("drop-down", openDown);
+    menu.style.setProperty("--seba-menu-space", `${space}px`);
+    menu.style.maxHeight = `${space}px`;
   }
 
   #choice(options: ChoiceOptions): HTMLElement {
@@ -548,12 +884,6 @@ export class SebaLoginElement extends HTMLElementBase {
     meta.append(title, subtitle);
 
     element.append(icon, meta);
-    if (options.badge !== undefined) {
-      const badge = document.createElement("span");
-      badge.className = "badge";
-      badge.textContent = options.badge;
-      element.append(badge);
-    }
     const chevron = document.createElement("span");
     chevron.className = "chev";
     chevron.setAttribute("aria-hidden", "true");
@@ -567,9 +897,10 @@ export class SebaLoginElement extends HTMLElementBase {
     if (!root) {
       return;
     }
+    // A search field from a previous render would otherwise linger outside the body.
+    root.querySelector(".dialog")?.querySelector(":scope > .search")?.remove();
     const titles: Record<DialogView, [string, string]> = {
-      more: ["Sign in to your Pod", "Choose how you want to continue."],
-      providers: ["Choose a Pod provider", "We'll take you to your provider to sign in."],
+      more: ["More Pod providers", "Sign in with another supported provider."],
       create: ["Create a Solid Pod", "Pick a provider to create your Pod."],
       "create-other": ["More Pod providers", "Choose where you want to create your Pod."],
     };
@@ -593,22 +924,12 @@ export class SebaLoginElement extends HTMLElementBase {
     body.replaceChildren();
 
     if (this.#dialogView === "more") {
-      body.append(
-        this.#choice({
-          title: "Choose a Pod provider",
-          subtitle: "Browse every provider SEBA supports",
-          glyph: GRID_SVG,
-          action: "providers",
-        }),
-        this.#choice({
-          title: "Use your WebID",
-          subtitle: "We'll discover your provider automatically",
-          glyph: PERSON_SVG,
-          action: "webid",
-        }),
-      );
-    } else if (this.#dialogView === "providers") {
-      for (const issuer of this.#allProviders()) {
+      const rest = this.#restProviders();
+      const long = this.#allProviders().length > SEARCH_THRESHOLD;
+      if (long) {
+        body.before(this.#searchField("dialog-search-input", "Search providers"));
+      }
+      for (const issuer of rest) {
         const choice = this.#choiceFor(issuer);
         body.append(
           this.#choice({
@@ -619,6 +940,13 @@ export class SebaLoginElement extends HTMLElementBase {
           }),
         );
       }
+      if (long) {
+        const empty = document.createElement("p");
+        empty.className = "empty-search";
+        empty.textContent = "No providers match your search.";
+        empty.hidden = true;
+        body.append(empty);
+      }
     } else if (this.#dialogView === "create") {
       for (const issuer of this.#primaryProviders()) {
         const choice = this.#choiceFor(issuer);
@@ -626,10 +954,9 @@ export class SebaLoginElement extends HTMLElementBase {
         body.append(
           this.#choice({
             title: choice.name,
-            subtitle: `Create a Pod at ${choice.domain}`,
+            subtitle: choice.domain,
             iconUri: choice.iconUri,
             href,
-            badge: "Create",
             disabled: href === undefined,
           }),
         );
@@ -645,6 +972,10 @@ export class SebaLoginElement extends HTMLElementBase {
     } else {
       const primary = new Set(this.#primaryProviders());
       const remaining = this.#allProviders().filter((issuer) => !primary.has(issuer));
+      const long = this.#allProviders().length > SEARCH_THRESHOLD;
+      if (long) {
+        body.before(this.#searchField("dialog-search-input", "Search providers"));
+      }
       for (const issuer of remaining) {
         const choice = this.#choiceFor(issuer);
         const href = safeExternalHttpUrl(choice.signup ?? choice.website) ?? undefined;
@@ -654,7 +985,6 @@ export class SebaLoginElement extends HTMLElementBase {
             subtitle: choice.domain,
             iconUri: choice.iconUri,
             href,
-            badge: "Create",
             disabled: href === undefined,
           }),
         );
@@ -663,6 +993,12 @@ export class SebaLoginElement extends HTMLElementBase {
         const empty = document.createElement("p");
         empty.className = "empty";
         empty.textContent = "No other providers are configured.";
+        body.append(empty);
+      } else if (long) {
+        const empty = document.createElement("p");
+        empty.className = "empty-search";
+        empty.textContent = "No providers match your search.";
+        empty.hidden = true;
         body.append(empty);
       }
     }
@@ -698,28 +1034,29 @@ export class SebaLoginElement extends HTMLElementBase {
       `<section class="card" part="card" aria-labelledby="seba-card-title">` +
       `<div class="signed-out">` +
       `<header class="head">` +
-      `<img class="brand" alt="" width="48" height="48" decoding="async">` +
-      `<div><h2 class="title" id="seba-card-title">Sign in to your Pod</h2>` +
-      `<p class="sub">Choose your Pod provider to continue.</p></div>` +
+      `<div class="brand-wrap" part="brand-wrap"><img class="brand" part="brand" alt="" width="48" height="48" decoding="async"></div>` +
+      `<div><h2 class="title" part="title" id="seba-card-title">Sign in to your Pod</h2>` +
+      `<p class="sub" part="subtitle">Choose your Pod provider to continue.</p></div>` +
       `</header>` +
-      `<div class="providers" role="group" aria-label="Pod providers"></div>` +
+      `<div class="providers" part="providers" role="group" aria-label="Pod providers"></div>` +
       `<button class="more" type="button" aria-haspopup="dialog" aria-label="More sign-in options">` +
       `<span class="more-dots" aria-hidden="true">&#8943;</span>` +
       `<span class="more-text">More options</span></button>` +
-      `<p class="create">New to Solid? <button class="create-open" type="button">Get a Pod</button></p>` +
       `<div class="or" aria-hidden="true"><span>or</span></div>` +
       `<form class="webid-form">` +
       `<label class="field-label" for="seba-webid">Continue with your WebID</label>` +
-      `<div class="combo">` +
-      `<span class="prefix-wrap">` +
-      `<img class="prefix-icon" alt="" width="48" height="48" decoding="async">` +
-      `<select class="prefix" aria-label="Pod provider for your WebID"></select>` +
-      `<span class="prefix-chev" aria-hidden="true">${CHEVRON_DOWN_SVG}</span>` +
-      `</span>` +
+       `<div class="combo">` +
+       `<span class="prefix-wrap">` +
+       `<img class="prefix-icon" alt="" width="48" height="48" decoding="async">` +
+       `<button class="prefix-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Pod provider for your WebID">` +
+       `<span class="prefix-label">Custom URL</span>` +
+       `<span class="prefix-chev" aria-hidden="true">${CHEVRON_DOWN_SVG}</span></button>` +
+       `<div class="prefix-menu" role="listbox" aria-label="Pod provider" hidden></div>` +
+       `</span>` +
       `<input class="webid-input" id="seba-webid" name="webid" type="text" inputmode="url" ` +
-      `autocomplete="off" spellcheck="false" placeholder="profile/card#me" aria-label="WebID">` +
+      `autocomplete="off" spellcheck="false" placeholder="username" aria-label="WebID">` +
       `</div>` +
-      `<button class="continue" type="submit">Continue</button>` +
+      `<button class="continue" part="continue" type="submit">Continue</button>` +
       `<p class="notice" role="alert" hidden></p>` +
       `</form>` +
       `<p class="trust">` +
@@ -728,6 +1065,7 @@ export class SebaLoginElement extends HTMLElementBase {
       `</svg>` +
       `<span>Your password never leaves your provider.</span>` +
       `</p>` +
+      `<p class="create">New to Solid? <button class="create-open" type="button">Get a Pod</button></p>` +
       `</div>` +
       `<div class="signed-in" hidden>` +
       `<div class="account-head">` +
@@ -740,7 +1078,7 @@ export class SebaLoginElement extends HTMLElementBase {
       `</div>` +
       `</section>` +
       `<div class="overlay" part="overlay" hidden>` +
-      `<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="seba-dialog-title">` +
+      `<div class="dialog" part="dialog" role="dialog" aria-modal="true" aria-labelledby="seba-dialog-title">` +
       `<div class="dhead">` +
       `<button class="dialog-back" type="button" aria-label="Back" hidden>${BACK_SVG}</button>` +
       `<h2 id="seba-dialog-title">Sign in to your Pod</h2>` +
@@ -782,12 +1120,15 @@ export class SebaLoginElement extends HTMLElementBase {
       if (title) {
         title.textContent = this.#attr("label") ?? "Sign in to your Pod";
       }
+      const brandWrap = root.querySelector<HTMLElement>(".brand-wrap");
       const brand = root.querySelector<HTMLImageElement>(".brand");
       if (brand) {
         const requested = this.#attr("logo");
         if (requested === "none") {
+          if (brandWrap) brandWrap.hidden = true;
           brand.hidden = true;
         } else {
+          if (brandWrap) brandWrap.hidden = false;
           brand.hidden = false;
           brand.src = sebaLogoImage(
             requested !== null && isSebaLogoVariant(requested) ? requested : "primary",
@@ -809,12 +1150,15 @@ export class SebaLoginElement extends HTMLElementBase {
       .forEach((button) => {
         button.disabled = this.#busy;
       });
-    root
-      .querySelector<HTMLElement>(".more")
-      ?.setAttribute(
+    const more = root.querySelector<HTMLElement>(".more");
+    if (more) {
+      // Nothing left to show when the card already lists every allowed provider.
+      more.hidden = this.#restProviders().length === 0;
+      more.setAttribute(
         "aria-expanded",
-        String(this.#dialogOpen && (this.#dialogView === "more" || this.#dialogView === "providers")),
+        String(this.#dialogOpen && this.#dialogView === "more"),
       );
+    }
 
     const overlay = root.querySelector<HTMLElement>(".overlay");
     if (overlay) {
@@ -880,6 +1224,7 @@ export class SebaLoginElement extends HTMLElementBase {
     this.#session = event.session;
     if (event.reason === "login") {
       this.#rememberIssuer(this.#activeIssuer());
+      this.#recordUsage(event.session?.provider ?? this.#activeIssuer());
       this.#closeDialog();
     }
     this.#update();
@@ -1044,6 +1389,105 @@ export function forgetIssuer(): void {
  * issuer; anything else with a path is treated as a WebID and resolved through
  * `solid:oidcIssuer` discovery. Anything that is not an http(s) URL fails.
  */
+/**
+ * Build a WebID from a provider prefix and what the person typed.
+ *
+ * A bare name ("alice") becomes the standard Solid profile document; anything
+ * that already looks like a path or a fragment is used as-is. Full URLs never
+ * reach here.
+ */
+export function buildWebId(prefix: string, raw: string): string {
+  if (/^https?:\/\//i.test(raw)) {
+    return raw.trim();
+  }
+  const base = prefix.replace(/\/+$/, "");
+  const value = raw.replace(/^\/+/, "").replace(/\/+$/, "");
+  const path = value.includes("/") || value.includes("#") ? value : `${value}/profile/card#me`;
+  return `${base}/${path}`;
+}
+
+/** Strip the noise a person pastes with a URL so matching stays forgiving. */
+function normalizeSearch(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/[/?#]+$/, "");
+}
+
+/** Match a query against an option's visible text, URL-aware. */
+export function matchesSearch(text: string, query: string): boolean {
+  const q = normalizeSearch(query);
+  if (q === "") {
+    return true;
+  }
+  if (normalizeSearch(text).includes(q)) {
+    return true;
+  }
+  return text.toLowerCase().includes(query.trim().toLowerCase());
+}
+
+/** The provider that owns a WebID URL, or `null` for an unknown host. */
+export function providerForWebId(webId: string, providers: readonly string[]): string | null {
+  let url: URL;
+  try {
+    url = new URL(webId);
+  } catch {
+    return null;
+  }
+  const host = url.hostname.toLowerCase();
+  const roots = new Map<string, string>();
+  for (const issuer of providers) {
+    let issuerHost: string;
+    try {
+      issuerHost = new URL(issuer).hostname.toLowerCase();
+    } catch {
+      continue;
+    }
+    if (host === issuerHost) {
+      return issuer;
+    }
+    const root = issuerHost.split(".").slice(-2).join(".");
+    if (root !== "" && !roots.has(root)) {
+      roots.set(root, issuer);
+    }
+  }
+  // Sub-domains count: id.inrupt.com belongs to login.inrupt.com's provider.
+  return roots.get(host.split(".").slice(-2).join(".")) ?? null;
+}
+
+/**
+ * The username segment of a WebID, ignoring the standard profile suffix.
+ *
+ * Handles both layouts: `provider.tld/alice/profile/card#me` and the
+ * subdomain form `alice.provider.tld/profile/card#me` used by NSS hosts.
+ */
+export function extractUsername(webId: string, providerHost?: string): string {
+  let url: URL;
+  try {
+    url = new URL(webId);
+  } catch {
+    return "";
+  }
+  const host = url.hostname.toLowerCase();
+  if (providerHost !== undefined) {
+    const base = providerHost.toLowerCase();
+    const rootDomain = base.split(".").length <= 2;
+    if (rootDomain && host !== base && host.endsWith(`.${base}`)) {
+      const sub = host.slice(0, -(base.length + 1));
+      if (sub !== "" && !sub.includes(".") && sub !== "www") {
+        return sub;
+      }
+    }
+  }
+  const segments = url.pathname
+    .split("/")
+    .filter(Boolean)
+    .filter((segment) => segment !== "profile" && segment !== "card");
+  return segments[0] ?? "";
+}
+
 export function classifyInput(
   value: string,
 ): { kind: "issuer" | "webId"; value: string } | null {

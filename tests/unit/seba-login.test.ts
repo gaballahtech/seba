@@ -10,13 +10,21 @@ import {
   sebaLogoImage,
 } from "../../src/index.js";
 import {
+  buildWebId,
   classifyInput,
+  extractUsername,
+  matchesSearch,
   parseInlineConfig,
   parseProviders,
   providerChoices,
+  providerForWebId,
   safeExternalHttpUrl,
 } from "../../src/element.js";
-import { DEFAULT_PROVIDERS } from "../../src/assets/providers.js";
+import {
+  DEFAULT_PROVIDERS,
+  popularityRank,
+  PRIMARY_PROVIDERS,
+} from "../../src/assets/providers.js";
 
 describe("brand assets", () => {
   it("inlines SVG artwork for every variant and still ships the PNG original", () => {
@@ -57,8 +65,15 @@ describe("provider branding", () => {
   it("knows the common providers with names, sign-up links and tiles", () => {
     const solid = providerInfo("https://solidcommunity.net/");
     expect(solid.name).toBe("Solid Project");
-    expect(solid.signup).toBe("https://solidcommunity.net/");
+    expect(solid.signup).toBe("https://solidcommunity.net/.account/login/password/register/");
     expect(providerInfo("https://login.inrupt.com/").signup).toBe("https://start.inrupt.com/profile");
+    expect(providerInfo("https://solidweb.org/").signup).toBe("https://solidweb.org/register");
+    expect(providerInfo("https://solidweb.me/").signup).toBe(
+      "https://solidweb.me/.account/login/password/register/",
+    );
+    expect(providerInfo("https://solid.openlinksw.com:8445/").signup).toBe(
+      "https://solid.openlinksw.com:8445/register",
+    );
     expect(providerInfo("https://trinpod.us/").signup).toBe("https://trinpod.us/");
     expect(solid.iconUri.startsWith("data:image/png;base64,")).toBe(true);
     expect(providerInfo("https://login.inrupt.com/").name).toBe("Inrupt");
@@ -73,14 +88,27 @@ describe("provider branding", () => {
     expect(issuerDomain("https://login.inrupt.com/")).toBe("login.inrupt.com");
   });
 
-  it("ships a five-provider default set when the app omits the list", () => {
-    expect(DEFAULT_PROVIDERS.length).toBe(5);
-    expect(new Set(DEFAULT_PROVIDERS).size).toBe(5);
-    expect(DEFAULT_PROVIDERS[0]).toBe("https://login.inrupt.com/");
-    expect(DEFAULT_PROVIDERS[1]).toBe("https://solidcommunity.net/");
+  it("ships every curated provider in popularity order when the app omits the list", () => {
+    expect(DEFAULT_PROVIDERS.length).toBe(11);
+    expect(new Set(DEFAULT_PROVIDERS).size).toBe(11);
+    // Most-known community Pod leads, Inrupt follows, then SolidWeb.org.
+    expect(DEFAULT_PROVIDERS[0]).toBe("https://solidcommunity.net/");
+    expect(DEFAULT_PROVIDERS[1]).toBe("https://login.inrupt.com/");
     expect(DEFAULT_PROVIDERS[2]).toBe("https://solidweb.org/");
     expect(DEFAULT_PROVIDERS).toEqual(expect.arrayContaining(["https://solidweb.me/", "https://trinpod.eu/"]));
     expect(DEFAULT_PROVIDERS).not.toContain("https://inrupt.net/");
+  });
+
+  it("orders providers by the curated popularity rank", () => {
+    expect(PRIMARY_PROVIDERS).toEqual([
+      "https://solidcommunity.net/",
+      "https://login.inrupt.com/",
+      "https://solidweb.org/",
+    ]);
+    expect(popularityRank("https://solidcommunity.net/")).toBeLessThan(
+      popularityRank("https://solidweb.me/"),
+    );
+    expect(popularityRank("https://unknown.example/")).toBe(DEFAULT_PROVIDERS.length);
   });
 
   it("pins the remembered issuer first in the picker choices", () => {
@@ -155,6 +183,110 @@ describe("<seba-login>", () => {
   });
 });
 
+
+describe("matchesSearch", () => {
+  const row = "SolidWeb.me solidweb.me";
+
+  it("matches plain names and domains", () => {
+    expect(matchesSearch(row, "solidweb")).toBe(true);
+    expect(matchesSearch(row, "web.me")).toBe(true);
+    expect(matchesSearch(row, "SOLIDWEB.ME")).toBe(true);
+  });
+
+  it("matches full URLs, with or without protocol, www or trailing slash", () => {
+    expect(matchesSearch(row, "https://solidweb.me/")).toBe(true);
+    expect(matchesSearch(row, "http://www.solidweb.me")).toBe(true);
+    expect(matchesSearch(row, "solidweb.me/")).toBe(true);
+  });
+
+  it("shows everything for an empty query and rejects unrelated text", () => {
+    expect(matchesSearch(row, "")).toBe(true);
+    expect(matchesSearch(row, "   ")).toBe(true);
+    expect(matchesSearch(row, "inrupt")).toBe(false);
+  });
+});
+
+describe("providerForWebId", () => {
+  const providers = [
+    "https://solidcommunity.net/",
+    "https://login.inrupt.com/",
+    "https://solidweb.me/",
+    "https://solid.redpencil.io/",
+  ];
+
+  it("matches the exact provider host", () => {
+    expect(providerForWebId("https://solidweb.me/alice/profile/card#me", providers)).toBe(
+      "https://solidweb.me/",
+    );
+    expect(providerForWebId("https://solidcommunity.net/profile/card#me", providers)).toBe(
+      "https://solidcommunity.net/",
+    );
+  });
+
+  it("matches sub-domains of a provider", () => {
+    expect(providerForWebId("https://id.inrupt.com/alice", providers)).toBe(
+      "https://login.inrupt.com/",
+    );
+  });
+
+  it("returns null for an unknown host", () => {
+    expect(providerForWebId("https://unknown.example/alice", providers)).toBeNull();
+    expect(providerForWebId("not a url", providers)).toBeNull();
+  });
+});
+
+describe("extractUsername", () => {
+  it("pulls the name out of a standard Solid profile URL", () => {
+    expect(extractUsername("https://solidweb.me/alice/profile/card#me")).toBe("alice");
+    expect(extractUsername("https://solidcommunity.net/alice/profile/card#me")).toBe("alice");
+  });
+
+  it("returns an empty string when the WebID has no name", () => {
+    expect(extractUsername("https://solidcommunity.net/profile/card#me")).toBe("");
+    expect(extractUsername("https://solidweb.me/")).toBe("");
+    expect(extractUsername("nope")).toBe("");
+  });
+
+  it("reads the name from a sub-domain style WebID", () => {
+    expect(extractUsername("https://test123123.solidcommunity.net/profile/card#me", "solidcommunity.net")).toBe(
+      "test123123",
+    );
+    expect(extractUsername("https://alice.solidweb.me/profile/card#me", "solidweb.me")).toBe("alice");
+  });
+
+  it("does not mistake a provider sub-domain for a user name", () => {
+    expect(extractUsername("https://id.inrupt.com/bob", "login.inrupt.com")).toBe("bob");
+  });
+});
+
+describe("buildWebId", () => {
+  it("turns a bare username into the standard profile document", () => {
+    expect(buildWebId("https://solidcommunity.net/", "alice")).toBe(
+      "https://solidcommunity.net/alice/profile/card#me",
+    );
+    expect(buildWebId("https://solidweb.me", "alice")).toBe(
+      "https://solidweb.me/alice/profile/card#me",
+    );
+  });
+
+  it("keeps an explicit path or fragment instead of appending one", () => {
+    expect(buildWebId("https://solidcommunity.net/", "alice/profile/card#me")).toBe(
+      "https://solidcommunity.net/alice/profile/card#me",
+    );
+    expect(buildWebId("https://solidcommunity.net/", "profile/card#me")).toBe(
+      "https://solidcommunity.net/profile/card#me",
+    );
+    expect(buildWebId("https://solidweb.org/", "alice/")).toBe(
+      "https://solidweb.org/alice/profile/card#me",
+    );
+  });
+
+  it("leaves a full URL untouched", () => {
+    expect(buildWebId("https://solidweb.me/", "https://other.example/card#me")).toBe(
+      "https://other.example/card#me",
+    );
+  });
+});
 
 describe("safeExternalHttpUrl", () => {
   it("accepts absolute https URLs", () => {
