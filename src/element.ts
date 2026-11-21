@@ -1055,8 +1055,8 @@ export class SebaLoginElement extends HTMLElementBase {
       `<style>${CARD_STYLES}</style>` +
       `<section class="card" part="card" aria-labelledby="seba-card-title">` +
       `<div class="signed-out">` +
-      `<header class="head">` +
       `<div class="brand-wrap" part="brand-wrap"><img class="brand" part="brand" alt="" width="48" height="48" decoding="async"></div>` +
+      `<header class="head">` +
       `<div><h2 class="title" part="title" id="seba-card-title">Sign in to your Pod</h2>` +
       `<p class="sub" part="subtitle">Choose your Pod provider to continue.</p></div>` +
       `</header>` +

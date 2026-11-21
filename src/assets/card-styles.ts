@@ -146,22 +146,19 @@ export const CARD_STYLES = `
 
 /* ---------- Header ---------- */
 .head {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
   margin-bottom: 16px;
-  text-align: start;
+  text-align: center;
 }
-.head > div {
-  min-width: 0;
-}
- .brand {
+.brand-wrap {
   display: block;
-  flex: none;
-  width: 46px;
-  height: 46px;
+  margin: 0 auto 12px;
+  width: 48px;
+  height: 48px;
+}
+.brand {
+  display: block;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
 }
 .title {
