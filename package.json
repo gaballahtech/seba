@@ -56,6 +56,8 @@
       "default": "./dist/pod.js"
     },
     "./assets/*": "./assets/*",
+    "./tokens": "./tokens.json",
+    "./tokens.json": "./tokens.json",
     "./package.json": "./package.json"
   },
   "files": [
@@ -71,6 +73,7 @@
     "CHANGELOG.md",
     "MIGRATION.md",
     "LICENSE",
+    "tokens.json",
     "RESEARCH.md",
     "ARCHITECTURE.md",
     "SECURITY.md",
@@ -120,12 +123,15 @@
     }
   },
   "devDependencies": {
+    "@axe-core/react": "^4.14.0",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.2.1",
     "@vitest/coverage-v8": "^5.1.0",
+    "axe-core": "^4.14.1",
     "fake-indexeddb": "^6.2.2",
+    "jsdom": "^31.0.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "typescript": "^5.9.3",
