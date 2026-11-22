@@ -112,7 +112,7 @@
   },
   "dependencies": {
     "idb": "8.0.4",
-    "jose": "6.2.17"
+    "jose": "6.2.18"
   },
   "peerDependencies": {
     "react": ">=18"
